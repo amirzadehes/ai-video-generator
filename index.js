@@ -2,10 +2,8 @@ const axios = require('axios');
 const fs = require('fs');
 const FormData = require('form-data');
 const path = require('path');
-const { execSync } = require('child_process'); // برای اجرای دستور ویدیو
 
-// سبک تصویرسازی
-const IMAGE_STYLE = "Modern editorial graphic novel illustration";
+const IMAGE_STYLE = "Cinematic, realistic, 4k, moody lighting, highly detailed";
 
 function formatTime(seconds) {
     const date = new Date(seconds * 1000);
@@ -17,8 +15,8 @@ function formatTime(seconds) {
 }
 
 async function generateImage(text, index) {
-    // مشکل نام مدل اینجا به gemini-1.5-flash-latest تغییر یافت
-    const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${process.env.GEMINI_API_KEY}`;
+    // بازگشت به مدل پایدار پرو برای جلوگیری از خطای نسخه فلش
+    const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-pro:generateContent?key=${process.env.GEMINI_API_KEY}`;
     const promptCommand = `You are an expert image prompt creator. Write a short, highly descriptive English prompt for an AI image generator based on this text: "${text}". The image MUST strictly follow this art style: "${IMAGE_STYLE}". Reply ONLY with the prompt, no extra words.`;
     
     let imagePrompt = text; 
@@ -29,9 +27,11 @@ async function generateImage(text, index) {
             headers: { 'Content-Type': 'application/json' }
         });
         imagePrompt = geminiRes.data.candidates[0].content.parts[0].text.trim();
-        console.log(`[Scene ${index}] Prompt: ${imagePrompt}`);
+        console.log(`[Scene ${index}] Gemini Prompt Generated Successfully.`);
     } catch (e) {
-        console.error(`[Scene ${index}] Gemini Error. Using original text instead.`);
+        // لاگ دقیق ارور تا بفهمیم مشکل کلید شما یا دسترسی چیست
+        console.error(`[Scene ${index}] Gemini Error Details:`, e.response ? JSON.stringify(e.response.data) : e.message);
+        console.log(`[Scene ${index}] Using original text instead.`);
     }
 
     const imageUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(imagePrompt)}?width=1920&height=1080&nologo=true`;
@@ -89,8 +89,6 @@ async function processAudioToImages(audioFilePath) {
     if (!fs.existsSync('images')) fs.mkdirSync('images');
     
     let ffmpegInput = '';
-    let lastImageName = '';
-
     for (let i = 0; i < segments.length; i++) {
         const seg = segments[i];
         const duration = (seg.end - seg.start).toFixed(2);
@@ -101,25 +99,10 @@ async function processAudioToImages(audioFilePath) {
         if (imgName) {
             ffmpegInput += `file 'images/${imgName}'\n`;
             ffmpegInput += `duration ${duration}\n`;
-            lastImageName = imgName;
         }
     }
-
-    if (lastImageName) {
-        ffmpegInput += `file 'images/${lastImageName}'\n`;
-    }
-
     fs.writeFileSync('input.txt', ffmpegInput);
-    console.log('Success: All images and input.txt generated!');
-
-    // فاز ۳: تولید ویدیو با استفاده از FFmpeg
-    console.log('Phase 3: Rendering Video with FFmpeg...');
-    try {
-        execSync(`ffmpeg -y -f concat -safe 0 -i input.txt -i "${audioFilePath}" -c:v libx264 -pix_fmt yuv420p -c:a aac -shortest final_video.mp4`, { stdio: 'inherit' });
-        console.log('Success: final_video.mp4 generated!');
-    } catch (err) {
-        console.error('FFmpeg Error:', err.message);
-    }
+    console.log('Success: SRT and Images are ready in the folder!');
 }
 
 processAudioToImages('./test-audio.mp3');
