@@ -27,29 +27,34 @@
         <h1>Cloud AI Video Studio</h1>
         
         <div class="step-box">
-            <label for="groqKey">Groq API Key:</label>
-            <input type="text" id="groqKey" placeholder="gsk_..." onchange="saveConfig()">
+            <details id="configDetails">
+                <summary style="cursor: pointer; font-weight: bold; color: #38bdf8; margin-bottom: 15px;">تنظیمات پایه‌ای (فقط یک‌بار وارد کنید)</summary>
+                <label for="groqKey">Groq API Key:</label>
+                <input type="text" id="groqKey" placeholder="gsk_..." onchange="saveConfig()">
+                
+                <label for="githubToken">GitHub Personal Access Token:</label>
+                <input type="text" id="githubToken" placeholder="ghp_..." onchange="saveConfig()">
+                
+                <label for="repoOwner">GitHub Username:</label>
+                <input type="text" id="repoOwner" placeholder="username" onchange="saveConfig()">
+                
+                <label for="repoName">Repository Name:</label>
+                <input type="text" id="repoName" placeholder="repository-name" onchange="saveConfig()">
+            </details>
             
-            <label for="githubToken">GitHub Personal Access Token:</label>
-            <input type="text" id="githubToken" placeholder="ghp_..." onchange="saveConfig()">
-            
-            <label for="repoOwner">GitHub Username:</label>
-            <input type="text" id="repoOwner" placeholder="username" onchange="saveConfig()">
-            
-            <label for="repoName">Repository Name:</label>
-            <input type="text" id="repoName" placeholder="repository-name" onchange="saveConfig()">
+            <hr style="border: 0; border-top: 1px solid #475569; margin: 20px 0;">
 
-            <label for="audioFile">Select Audio File (MP3):</label>
+            <label for="audioFile">انتخاب فایل صوتی (MP3):</label>
             <input type="file" id="audioFile" accept="audio/*">
             
-            <button onclick="analyzeAudio()">Analyze Audio & Generate Prompts</button>
+            <button onclick="analyzeAudio()">تحلیل صوت و تولید پرامپت‌ها</button>
         </div>
 
-        <div id="loading" style="text-align: center; color: #38bdf8; font-weight: bold; margin: 15px 0;">Analyzing audio and extracting scenes via AI... Please wait.</div>
+        <div id="loading" style="text-align: center; color: #38bdf8; font-weight: bold; margin: 15px 0;">در حال تحلیل صوت و استخراج صحنه‌ها با هوش مصنوعی... لطفاً صبر کنید.</div>
         
         <div id="scenesSection">
             <div id="scenesContainer"></div>
-            <button class="render-btn" onclick="startFullPipeline()">Build & Render Final Video</button>
+            <button class="render-btn" onclick="startFullPipeline()">آپلود عکس‌ها و ساخت نهایی ویدیو</button>
         </div>
 
         <div id="statusBox"></div>
@@ -59,13 +64,30 @@
         const IMAGE_STYLE = "Modern editorial graphic novel illustration";
         let detectedChunks = [];
 
+        // بارگذاری خودکار اطلاعات ذخیره‌شده به محض باز شدن صفحه
         window.onload = function() {
-            if(localStorage.getItem('groqKey')) document.getElementById('groqKey').value = localStorage.getItem('groqKey');
-            if(localStorage.getItem('githubToken')) document.getElementById('githubToken').value = localStorage.getItem('githubToken');
-            if(localStorage.getItem('repoOwner')) document.getElementById('repoOwner').value = localStorage.getItem('repoOwner');
-            if(localStorage.getItem('repoName')) document.getElementById('repoName').value = localStorage.getItem('repoName');
+            if(localStorage.getItem('groqKey')) {
+                document.getElementById('groqKey').value = localStorage.getItem('groqKey');
+            }
+            if(localStorage.getItem('githubToken')) {
+                document.getElementById('githubToken').value = localStorage.getItem('githubToken');
+            }
+            if(localStorage.getItem('repoOwner')) {
+                document.getElementById('repoOwner').value = localStorage.getItem('repoOwner');
+            }
+            if(localStorage.getItem('repoName')) {
+                document.getElementById('repoName').value = localStorage.getItem('repoName');
+            }
+
+            // اگر همه اطلاعات از قبل بود، بخش تنظیمات را به صورت پیش‌فرض می‌بندیم تا شلوغ نباشد
+            if(localStorage.getItem('groqKey') && localStorage.getItem('githubToken')) {
+                document.getElementById('configDetails').open = false;
+            } else {
+                document.getElementById('configDetails').open = true;
+            }
         }
 
+        // ذخیره خودکار تغییرات در حافظه مرورگر
         function saveConfig() {
             localStorage.setItem('groqKey', document.getElementById('groqKey').value.trim());
             localStorage.setItem('githubToken', document.getElementById('githubToken').value.trim());
@@ -79,7 +101,7 @@
             const fileInput = document.getElementById('audioFile').files[0];
             
             if (!apiKey || !fileInput) {
-                alert('Please enter your Groq API Key and select an audio file.');
+                alert('لطفاً کلید Groq API و فایل صوتی را وارد/انتخاب کنید.');
                 return;
             }
 
@@ -116,7 +138,7 @@
                     detectedChunks.push({ start: chunkStart, end: chunkEnd, text: currentText.trim() });
                 }
 
-                let htmlContent = '<h2>Extracted Scenes & Prompts</h2>';
+                let htmlContent = '<h2>موضوعات استخراج‌شده و پرامپت‌ها</h2>';
                 for (let i = 0; i < detectedChunks.length; i++) {
                     const chunk = detectedChunks[i];
                     const sceneIndex = i + 1;
@@ -132,9 +154,9 @@
                     
                     htmlContent += `
                         <div class="scene-card">
-                            <h3>Scene ${sceneIndex} (${chunk.start.toFixed(1)}s - ${chunk.end.toFixed(1)}s)</h3>
+                            <h3>صحنه ${sceneIndex} (${chunk.start.toFixed(1)} ثانیه - ${chunk.end.toFixed(1)} ثانیه)</h3>
                             <div class="prompt-text">${chunk.prompt}</div>
-                            <label>Upload Image for Scene ${sceneIndex} (Will be auto-named):</label>
+                            <label>آپلود عکس برای صحنه ${sceneIndex} (نام‌گذاری خودکار):</label>
                             <input type="file" id="imageInput_${i}" accept="image/*">
                         </div>
                     `;
@@ -143,7 +165,7 @@
                 document.getElementById('scenesContainer').innerHTML = htmlContent;
                 document.getElementById('scenesSection').style.display = 'block';
             } catch (error) {
-                alert('Error during processing: ' + (error.response?.data?.error?.message || error.message));
+                alert('خطا در پردازش: ' + (error.response?.data?.error?.message || error.message));
             } finally {
                 document.getElementById('loading').style.display = 'none';
             }
@@ -165,13 +187,13 @@
             const audioFile = document.getElementById('audioFile').files[0];
 
             if (!token || !owner || !repo || !audioFile) {
-                alert('Please ensure all GitHub configurations and audio file are provided.');
+                alert('لطفاً تنظیمات گیت‌هاب و فایل صوتی را بررسی کنید.');
                 return;
             }
 
             const statusBox = document.getElementById('statusBox');
             statusBox.style.display = 'block';
-            statusBox.innerHTML = 'Step 1/3: Auto-renaming & uploading assets to GitHub...';
+            statusBox.innerHTML = 'مرحله ۱ از ۳: نام‌گذاری خودکار و آپلود فایل‌ها به گیت‌هاب...';
 
             const headers = {
                 'Authorization': `Bearer ${token}`,
@@ -211,16 +233,16 @@
                     content: inputTxtBase64
                 }, { headers });
 
-                statusBox.innerHTML = 'Step 2/3: Triggering automated video render...';
+                statusBox.innerHTML = 'مرحله ۲ از ۳: شروع فرآیند رندر ویدیو در گیت‌هاب...';
 
                 await axios.post(`https://api.github.com/repos/${owner}/${repo}/actions/workflows/main.yml/dispatches`, {
                     ref: 'main'
                 }, { headers });
 
-                statusBox.innerHTML = 'Step 3/3: Video is rendering in the background! Wait 1-2 minutes and download your final video from GitHub Actions.';
+                statusBox.innerHTML = 'مرحله ۳ از ۳: ویدیو با موفقیت در پس‌زمینه در حال ساخت است! ۱ الی ۲ دقیقه دیگر به تب Actions در گیت‌هاب سر بزنید تا ویدیوی نهایی را دانلود کنید.';
 
             } catch (error) {
-                statusBox.innerHTML = 'Error: ' + (error.response?.data?.message || error.message);
+                statusBox.innerHTML = 'خطا: ' + (error.response?.data?.message || error.message);
             }
         }
     </script>
