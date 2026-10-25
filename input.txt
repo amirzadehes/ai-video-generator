@@ -7,10 +7,10 @@ duration 8.40
 file 'images/image_004.jpg'
 duration 11.10
 file 'images/image_005.jpg'
-duration 19.50
+duration 22.50
 file 'images/image_006.jpg'
-duration 13.00
+duration 10.50
 file 'images/image_007.jpg'
-duration 12.80
+duration 12.30
 file 'images/image_008.jpg'
 duration 17.30
