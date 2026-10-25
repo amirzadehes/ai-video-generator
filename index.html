@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Fully Automated Cloud AI Video Studio</title>
+    <title>Cloud AI Video Studio</title>
     <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
     <style>
         body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #0f172a; color: #f8fafc; margin: 0; padding: 20px; display: flex; justify-content: center; }
@@ -49,7 +49,7 @@
         
         <div id="scenesSection">
             <div id="scenesContainer"></div>
-            <button class="render-btn" onclick="startFullPipeline()">Upload Images & Build Final Video</button>
+            <button class="render-btn" onclick="startFullPipeline()">Build & Render Final Video</button>
         </div>
 
         <div id="statusBox"></div>
@@ -134,7 +134,7 @@
                         <div class="scene-card">
                             <h3>Scene ${sceneIndex} (${chunk.start.toFixed(1)}s - ${chunk.end.toFixed(1)}s)</h3>
                             <div class="prompt-text">${chunk.prompt}</div>
-                            <label>Upload Image for Scene ${sceneIndex}:</label>
+                            <label>Upload Image for Scene ${sceneIndex} (Will be auto-named):</label>
                             <input type="file" id="imageInput_${i}" accept="image/*">
                         </div>
                     `;
@@ -171,7 +171,7 @@
 
             const statusBox = document.getElementById('statusBox');
             statusBox.style.display = 'block';
-            statusBox.innerHTML = 'Step 1/3: Uploading audio and images to GitHub repository...';
+            statusBox.innerHTML = 'Step 1/3: Auto-renaming & uploading assets to GitHub...';
 
             const headers = {
                 'Authorization': `Bearer ${token}`,
@@ -180,14 +180,12 @@
             };
 
             try {
-                // 1. آپلود فایل صوتی به گیت‌هاب
                 const audioBase64 = await fileToBase64(audioFile);
                 await axios.put(`https://api.github.com/repos/${owner}/${repo}/contents/test-audio.mp3`, {
                     message: 'Upload audio file via web studio',
                     content: audioBase64
                 }, { headers });
 
-                // 2. آپلود عکس‌ها و ساخت input.txt
                 let ffmpegInput = '';
                 for (let i = 0; i < detectedChunks.length; i++) {
                     const fileInput = document.getElementById(`imageInput_${i}`).files[0];
@@ -198,7 +196,7 @@
                     if (fileInput) {
                         const imgBase64 = await fileToBase64(fileInput);
                         await axios.put(`https://api.github.com/repos/${owner}/${repo}/contents/images/${imageName}`, {
-                            message: `Upload ${imageName} via web studio`,
+                            message: `Auto-name and upload ${imageName}`,
                             content: imgBase64
                         }, { headers });
                     }
@@ -207,21 +205,19 @@
                     ffmpegInput += `duration ${duration}\n`;
                 }
 
-                // 3. آپلود فایل تنظیمات ویدیو (input.txt)
                 const inputTxtBase64 = btoa(unescape(encodeURIComponent(ffmpegInput)));
                 await axios.put(`https://api.github.com/repos/${owner}/${repo}/contents/input.txt`, {
                     message: 'Update ffmpeg input configuration',
                     content: inputTxtBase64
                 }, { headers });
 
-                statusBox.innerHTML = 'Step 2/3: Triggering video rendering workflow on GitHub Actions...';
+                statusBox.innerHTML = 'Step 2/3: Triggering automated video render...';
 
-                // 4. تریگر کردن اکشن گیت‌هاب برای رندر ویدیو
                 await axios.post(`https://api.github.com/repos/${owner}/${repo}/actions/workflows/main.yml/dispatches`, {
                     ref: 'main'
                 }, { headers });
 
-                statusBox.innerHTML = 'Step 3/3: Video rendering started in the background! Please wait about 1-2 minutes, then check your GitHub Actions tab to download `Final-Rendered-Video`.';
+                statusBox.innerHTML = 'Step 3/3: Video is rendering in the background! Wait 1-2 minutes and download your final video from GitHub Actions.';
 
             } catch (error) {
                 statusBox.innerHTML = 'Error: ' + (error.response?.data?.message || error.message);
