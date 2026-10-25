@@ -28,7 +28,7 @@
         
         <div class="step-box">
             <details id="configDetails">
-                <summary style="cursor: pointer; font-weight: bold; color: #38bdf8; margin-bottom: 15px;">تنظیمات پایه‌ای (فقط یک‌بار وارد کنید)</summary>
+                <summary style="cursor: pointer; font-weight: bold; color: #38bdf8; margin-bottom: 15px;">تنظیمات پایه‌ای (ذخیره‌شده)</summary>
                 <label for="groqKey">Groq API Key:</label>
                 <input type="text" id="groqKey" placeholder="gsk_..." onchange="saveConfig()">
                 
@@ -64,22 +64,12 @@
         const IMAGE_STYLE = "Modern editorial graphic novel illustration";
         let detectedChunks = [];
 
-        // بارگذاری خودکار اطلاعات ذخیره‌شده به محض باز شدن صفحه
         window.onload = function() {
-            if(localStorage.getItem('groqKey')) {
-                document.getElementById('groqKey').value = localStorage.getItem('groqKey');
-            }
-            if(localStorage.getItem('githubToken')) {
-                document.getElementById('githubToken').value = localStorage.getItem('githubToken');
-            }
-            if(localStorage.getItem('repoOwner')) {
-                document.getElementById('repoOwner').value = localStorage.getItem('repoOwner');
-            }
-            if(localStorage.getItem('repoName')) {
-                document.getElementById('repoName').value = localStorage.getItem('repoName');
-            }
+            if(localStorage.getItem('groqKey')) document.getElementById('groqKey').value = localStorage.getItem('groqKey');
+            if(localStorage.getItem('githubToken')) document.getElementById('githubToken').value = localStorage.getItem('githubToken');
+            if(localStorage.getItem('repoOwner')) document.getElementById('repoOwner').value = localStorage.getItem('repoOwner');
+            if(localStorage.getItem('repoName')) document.getElementById('repoName').value = localStorage.getItem('repoName');
 
-            // اگر همه اطلاعات از قبل بود، بخش تنظیمات را به صورت پیش‌فرض می‌بندیم تا شلوغ نباشد
             if(localStorage.getItem('groqKey') && localStorage.getItem('githubToken')) {
                 document.getElementById('configDetails').open = false;
             } else {
@@ -87,7 +77,6 @@
             }
         }
 
-        // ذخیره خودکار تغییرات در حافظه مرورگر
         function saveConfig() {
             localStorage.setItem('groqKey', document.getElementById('groqKey').value.trim());
             localStorage.setItem('githubToken', document.getElementById('githubToken').value.trim());
@@ -180,6 +169,25 @@
             });
         }
 
+        // تابع هوشمند برای آپلود فایل در صورتی که از قبل وجود داشته باشد (برای جلوگیری از خطای sha)
+        async function uploadFileToGitHub(owner, repo, path, contentBase64, message, headers) {
+            let sha = null;
+            try {
+                const existing = await axios.get(`https://api.github.com/repos/${owner}/${repo}/contents/${path}`, { headers });
+                sha = existing.data.sha;
+            } catch (e) {
+                // اگر فایل از قبل نبود، خطایی رخ می‌دهد که نادیده گرفته می‌شود تا فایل جدید ساخته شود
+            }
+
+            const body = {
+                message: message,
+                content: contentBase64
+            };
+            if (sha) body.sha = sha;
+
+            await axios.put(`https://api.github.com/repos/${owner}/${repo}/contents/${path}`, body, { headers });
+        }
+
         async function startFullPipeline() {
             const token = document.getElementById('githubToken').value.trim();
             const owner = document.getElementById('repoOwner').value.trim();
@@ -193,7 +201,7 @@
 
             const statusBox = document.getElementById('statusBox');
             statusBox.style.display = 'block';
-            statusBox.innerHTML = 'مرحله ۱ از ۳: نام‌گذاری خودکار و آپلود فایل‌ها به گیت‌هاب...';
+            statusBox.innerHTML = 'مرحله ۱ از ۳: آپلود هوشمند فایل‌ها و عکس‌ها به گیت‌هاب...';
 
             const headers = {
                 'Authorization': `Bearer ${token}`,
@@ -202,12 +210,11 @@
             };
 
             try {
+                // آپلود فایل صوتی
                 const audioBase64 = await fileToBase64(audioFile);
-                await axios.put(`https://api.github.com/repos/${owner}/${repo}/contents/test-audio.mp3`, {
-                    message: 'Upload audio file via web studio',
-                    content: audioBase64
-                }, { headers });
+                await uploadFileToGitHub(owner, repo, 'test-audio.mp3', audioBase64, 'Upload audio file via web studio', headers);
 
+                // آپلود عکس‌ها و ساخت input.txt
                 let ffmpegInput = '';
                 for (let i = 0; i < detectedChunks.length; i++) {
                     const fileInput = document.getElementById(`imageInput_${i}`).files[0];
@@ -217,24 +224,20 @@
 
                     if (fileInput) {
                         const imgBase64 = await fileToBase64(fileInput);
-                        await axios.put(`https://api.github.com/repos/${owner}/${repo}/contents/images/${imageName}`, {
-                            message: `Auto-name and upload ${imageName}`,
-                            content: imgBase64
-                        }, { headers });
+                        await uploadFileToGitHub(owner, repo, `images/${imageName}`, imgBase64, `Auto-name and upload ${imageName}`, headers);
                     }
 
                     ffmpegInput += `file 'images/${imageName}'\n`;
                     ffmpegInput += `duration ${duration}\n`;
                 }
 
+                // آپلود فایل تنظیمات فریم‌ورک ویدیو
                 const inputTxtBase64 = btoa(unescape(encodeURIComponent(ffmpegInput)));
-                await axios.put(`https://api.github.com/repos/${owner}/${repo}/contents/input.txt`, {
-                    message: 'Update ffmpeg input configuration',
-                    content: inputTxtBase64
-                }, { headers });
+                await uploadFileToGitHub(owner, repo, 'input.txt', inputTxtBase64, 'Update ffmpeg input configuration', headers);
 
                 statusBox.innerHTML = 'مرحله ۲ از ۳: شروع فرآیند رندر ویدیو در گیت‌هاب...';
 
+                // تریگر کردن اکشن گیت‌هاب
                 await axios.post(`https://api.github.com/repos/${owner}/${repo}/actions/workflows/main.yml/dispatches`, {
                     ref: 'main'
                 }, { headers });
