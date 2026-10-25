@@ -339,37 +339,15 @@
         }
 
         async function fetchDownloadLink(owner, repo, token) {
-            const headers = {
-                'Authorization': `Bearer ${token}`,
-                'Accept': 'application/vnd.github+json',
-                'X-GitHub-Api-Version': '2022-11-28'
-            };
+            // لینک مستقیم به فایل نهایی MP4 در ریشه مخزن گیت‌هاب
+            const videoUrl = `https://raw.githubusercontent.com/${owner}/${repo}/main/final_video.mp4`;
 
-            try {
-                const artifactsRes = await axios.get(`https://api.github.com/repos/${owner}/${repo}/actions/artifacts`, { headers });
-                const artifact = artifactsRes.data.artifacts[0];
-                if (artifact) {
-                    // دانلود مستقیم فایل با فرستادن توکن احراز هویت و ساخت لینک امن محلی
-                    const downloadRes = await axios.get(artifact.archive_download_url, {
-                        headers: { 'Authorization': `Bearer ${token}` },
-                        responseType: 'blob'
-                    });
-
-                    const blob = new Blob([downloadRes.data], { type: 'application/zip' });
-                    const blobUrl = window.URL.createObjectURL(blob);
-
-                    document.getElementById('statusText').innerHTML = `
-                        <b style="color: #22c55e; font-size: 16px;">ویدیو با موفقیت ساخته شد!</b><br><br>
-                        <a href="${blobUrl}" download="final_video.mp4" style="background: #0ea5e9; color: white; padding: 10px 20px; text-decoration: none; border-radius: 6px; display: inline-block; font-weight: bold;">دانلود مستقیم فایل ویدیو (MP4)</a>
-                    `;
-                }
-            } catch (e) {
-                // روش جایگزین در صورت مسدود شدن دانلود مستقیم آرتیفکت توسط مرورگر: نمایش لینک امن تب جدید با توکن در هدر یا هدایت مستقیم
-                document.getElementById('statusText').innerHTML = `
-                    <b style="color: #22c55e; font-size: 16px;">ویدیو با موفقیت ساخته شد!</b><br><br>
-                    <a href="https://github.com/${owner}/${repo}/actions" target="_blank" style="background: #0ea5e9; color: white; padding: 10px 20px; text-decoration: none; border-radius: 6px; display: inline-block; font-weight: bold;">مشاهده و دانلود از صفحه Actions گیت‌هاب</a>
-                `;
-            }
+            document.getElementById('statusBox').style.display = 'block';
+            document.getElementById('progressBarContainer').style.display = 'none';
+            document.getElementById('statusText').innerHTML = `
+                <b style="color: #22c55e; font-size: 16px;">ویدیو با موفقیت ساخته شد!</b><br><br>
+                <a href="${videoUrl}" target="_blank" download="final_video.mp4" style="background: #0ea5e9; color: white; padding: 10px 20px; text-decoration: none; border-radius: 6px; display: inline-block; font-weight: bold;">دانلود مستقیم فایل ویدیو (MP4)</a>
+            `;
         }
     </script>
 </body>
