@@ -3,7 +3,7 @@ const fs = require('fs');
 const FormData = require('form-data');
 const path = require('path');
 
-const IMAGE_STYLE = "Cinematic, moody lighting, highly detailed photography";
+const IMAGE_STYLE = "Cinematic, photorealistic, high quality, 4k, detailed lighting";
 const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
 function formatTime(seconds) {
@@ -17,12 +17,12 @@ function formatTime(seconds) {
 
 async function generateImage(text, index) {
     const groqUrl = 'https://api.groq.com/openai/v1/chat/completions';
-    const promptCommand = `Write a very short, simple English description for a cinematic background image based on this text: "${text}". Style: "${IMAGE_STYLE}". Reply ONLY with the description.`;
+    const promptCommand = `Translate the core meaning of this text into a short, descriptive English visual prompt for an AI image generator: "${text}". Style: "${IMAGE_STYLE}". Reply ONLY with the English prompt, no extra words.`;
     
-    let imagePrompt = "Cinematic landscape, moody lighting"; 
+    let imagePrompt = "Cinematic background scene"; 
     try {
         const groqRes = await axios.post(groqUrl, {
-            model: "openai/gpt-oss-20b",
+            model: "llama-3.1-8b-instant",
             messages: [{ role: "user", content: promptCommand }]
         }, {
             headers: { 
@@ -31,24 +31,24 @@ async function generateImage(text, index) {
             }
         });
         imagePrompt = groqRes.data.choices[0].message.content.trim().replace(/[\r\n]+/g, ' ');
+        console.log(`[Scene ${index}] Generated Prompt: ${imagePrompt}`);
     } catch (e) {
-        imagePrompt = "Cinematic background scene";
+        console.log(`[Scene ${index}] Prompt generation failed, using fallback.`);
     }
 
     const encodedPrompt = encodeURIComponent(imagePrompt);
-    const imageUrl = `https://image.pollinations.ai/prompt/${encodedProvenance(encodedPrompt)}?width=1920&height=1080&nologo=true`;
-    const fallbackUrl = `https://picsum.photos/seed/${index}/1920/1080`;
+    const imageUrl = `https://image.pollinations.ai/prompt/${encodedPrompt}?width=1920&height=1080&nologo=true&seed=${index}`;
 
     const imageName = `image_${String(index).padStart(3, '0')}.jpg`;
     const imagePath = path.join(__dirname, 'images', imageName);
     
     let success = false;
-    for (let urlToTry of [imageUrl, fallbackUrl]) {
+    for (let attempt = 1; attempt <= 3; attempt++) {
         try {
             const imgRes = await axios({ 
-                url: urlToTry, 
+                url: imageUrl, 
                 responseType: 'arraybuffer',
-                timeout: 20000,
+                timeout: 30000,
                 headers: { 'User-Agent': 'Mozilla/5.0' }
             });
             fs.writeFileSync(imagePath, imgRes.data);
@@ -56,7 +56,8 @@ async function generateImage(text, index) {
             success = true;
             break;
         } catch (e) {
-            continue;
+            console.log(`[Scene ${index}] Download attempt ${attempt} failed, retrying...`);
+            await sleep(3000);
         }
     }
     
@@ -65,10 +66,6 @@ async function generateImage(text, index) {
         return null;
     }
     return imageName;
-}
-
-function encodedProvenance(str) {
-    return str.replace(/[^a-zA-Z0-9-_]/g, '_');
 }
 
 async function processAudioToImages(audioFilePath) {
@@ -104,7 +101,7 @@ async function processAudioToImages(audioFilePath) {
     });
     fs.writeFileSync('output.srt', srtContent.trim());
 
-    console.log('Phase 2: Grouping segments and generating major scene images...');
+    console.log('Phase 2: Grouping segments and generating relevant images...');
     if (!fs.existsSync('images')) fs.mkdirSync('images');
 
     let chunks = [];
@@ -140,12 +137,12 @@ async function processAudioToImages(audioFilePath) {
         }
         
         if (i < chunks.length - 1) {
-            await sleep(2000); 
+            await sleep(3000); 
         }
     }
     
     fs.writeFileSync('input.txt', ffmpegInput);
-    console.log('Success: Grouped SRT and optimized Images are ready!');
+    console.log('Success: Grouped SRT and relevant Images are ready!');
 }
 
 processAudioToImages('./test-audio.mp3');
