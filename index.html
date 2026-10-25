@@ -3,15 +3,17 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Cloud AI Video Studio</title>
+    <title>Cloud AI Video Studio Pro</title>
     <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
     <style>
         body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #0f172a; color: #f8fafc; margin: 0; padding: 20px; display: flex; justify-content: center; }
-        .container { width: 100%; max-width: 800px; background: #1e293b; padding: 30px; border-radius: 12px; box-shadow: 0 10px 25px rgba(0,0,0,0.3); }
+        .container { width: 100%; max-width: 850px; background: #1e293b; padding: 30px; border-radius: 12px; box-shadow: 0 10px 25px rgba(0,0,0,0.3); }
         h1 { text-align: center; color: #38bdf8; margin-bottom: 25px; }
         .step-box { background: #334155; padding: 20px; border-radius: 8px; margin-bottom: 20px; }
         label { display: block; margin-bottom: 8px; font-weight: 600; color: #94a3b8; }
         input[type="text"], input[type="file"] { width: 100%; padding: 12px; background: #0f172a; border: 1px solid #475569; border-radius: 6px; color: #fff; box-sizing: border-box; margin-bottom: 15px; }
+        .time-inputs { display: flex; gap: 10px; margin-bottom: 15px; }
+        .time-inputs div { flex: 1; }
         button { background: #0ea5e9; color: white; border: none; padding: 12px 20px; border-radius: 6px; font-weight: bold; cursor: pointer; width: 100%; transition: background 0.2s; }
         button:hover { background: #0284c7; }
         .scene-card { background: #1e293b; border: 1px solid #475569; padding: 15px; border-radius: 6px; margin-bottom: 15px; }
@@ -19,12 +21,14 @@
         #loading, #scenesSection { display: none; }
         .render-btn { background: #22c55e; margin-top: 20px; }
         .render-btn:hover { background: #16a34a; }
-        #statusBox { margin-top: 15px; padding: 15px; background: #0f172a; border-radius: 6px; display: none; font-family: monospace; color: #38bdf8; }
+        #statusBox { margin-top: 15px; padding: 15px; background: #0f172a; border-radius: 6px; display: none; font-family: monospace; color: #38bdf8; text-align: center; }
+        .progress-bar-container { width: 100%; background: #334155; border-radius: 6px; margin-top: 10px; overflow: hidden; display: none; }
+        .progress-bar { width: 0%; height: 20px; background: #22c55e; text-align: center; color: white; font-size: 12px; line-height: 20px; transition: width 0.5s; }
     </style>
 </head>
 <body>
     <div class="container">
-        <h1>Cloud AI Video Studio</h1>
+        <h1>Cloud AI Video Studio Pro</h1>
         
         <div class="step-box">
             <details id="configDetails">
@@ -47,22 +51,28 @@
             <label for="audioFile">انتخاب فایل صوتی (MP3):</label>
             <input type="file" id="audioFile" accept="audio/*">
             
-            <button onclick="analyzeAudio()">تحلیل صوت و تولید پرامپت‌ها</button>
+            <button onclick="analyzeAudio()">تحلیل صوت و تولید صحنه‌ها</button>
         </div>
 
         <div id="loading" style="text-align: center; color: #38bdf8; font-weight: bold; margin: 15px 0;">در حال تحلیل صوت و استخراج صحنه‌ها با هوش مصنوعی... لطفاً صبر کنید.</div>
         
         <div id="scenesSection">
             <div id="scenesContainer"></div>
+            <button style="background: #475569; margin-bottom: 15px;" onclick="addSceneManual()">+ افزودن صحنه جدید دستی</button>
             <button class="render-btn" onclick="startFullPipeline()">آپلود عکس‌ها و ساخت نهایی ویدیو</button>
         </div>
 
-        <div id="statusBox"></div>
+        <div id="statusBox">
+            <div id="statusText">در حال آماده‌سازی...</div>
+            <div class="progress-bar-container" id="progressBarContainer">
+                <div class="progress-bar" id="progressBar">0%</div>
+            </div>
+        </div>
     </div>
 
     <script>
         const IMAGE_STYLE = "Modern editorial graphic novel illustration";
-        let detectedChunks = [];
+        let manualScenes = [];
 
         window.onload = function() {
             if(localStorage.getItem('groqKey')) document.getElementById('groqKey').value = localStorage.getItem('groqKey');
@@ -82,6 +92,18 @@
             localStorage.setItem('githubToken', document.getElementById('githubToken').value.trim());
             localStorage.setItem('repoOwner', document.getElementById('repoOwner').value.trim());
             localStorage.setItem('repoName', document.getElementById('repoName').value.trim());
+        }
+
+        function secondsToMMSS(sec) {
+            const m = Math.floor(sec / 60);
+            const s = Math.floor(sec % 60);
+            return `${m}:${s < 10 ? '0' : ''}${s}`;
+        }
+
+        function mmssToSeconds(str) {
+            const parts = str.split(':');
+            if(parts.length !== 2) return 0;
+            return parseInt(parts[0]) * 60 + parseInt(parts[1]);
         }
 
         async function analyzeAudio() {
@@ -108,7 +130,7 @@
                 });
 
                 const segments = transcriptionRes.data.segments;
-                detectedChunks = [];
+                manualScenes = [];
                 let currentText = '';
                 let chunkStart = segments[0].start;
                 let chunkEnd = segments[0].end;
@@ -118,46 +140,78 @@
                     currentText += ' ' + seg.text;
                     chunkEnd = seg.end;
                     if ((chunkEnd - chunkStart) >= targetDuration) {
-                        detectedChunks.push({ start: chunkStart, end: chunkEnd, text: currentText.trim() });
+                        manualScenes.push({ start: chunkStart, end: chunkEnd, text: currentText.trim() });
                         currentText = '';
                         chunkStart = seg.end;
                     }
                 });
                 if (currentText.trim().length > 0) {
-                    detectedChunks.push({ start: chunkStart, end: chunkEnd, text: currentText.trim() });
+                    manualScenes.push({ start: chunkStart, end: chunkEnd, text: currentText.trim() });
                 }
 
-                let htmlContent = '<h2>موضوعات استخراج‌شده و پرامپت‌ها</h2>';
-                for (let i = 0; i < detectedChunks.length; i++) {
-                    const chunk = detectedChunks[i];
-                    const sceneIndex = i + 1;
-                    
+                for (let i = 0; i < manualScenes.length; i++) {
                     const promptRes = await axios.post('https://api.groq.com/openai/v1/chat/completions', {
                         model: "openai/gpt-oss-20b",
-                        messages: [{ role: "user", content: `Write a short English image prompt based on this text: "${chunk.text}". Style: ${IMAGE_STYLE}. Reply ONLY with the prompt.` }]
+                        messages: [{ role: "user", content: `Write a short English image prompt based on this text: "${manualScenes[i].text}". Style: ${IMAGE_STYLE}. Reply ONLY with the prompt.` }]
                     }, {
                         headers: { 'Authorization': `Bearer ${apiKey}`, 'Content-Type': 'application/json' }
                     });
-
-                    chunk.prompt = promptRes.data.choices[0].message.content.trim();
-                    
-                    htmlContent += `
-                        <div class="scene-card">
-                            <h3>صحنه ${sceneIndex} (${chunk.start.toFixed(1)} ثانیه - ${chunk.end.toFixed(1)} ثانیه)</h3>
-                            <div class="prompt-text">${chunk.prompt}</div>
-                            <label>آپلود عکس برای صحنه ${sceneIndex} (نام‌گذاری خودکار):</label>
-                            <input type="file" id="imageInput_${i}" accept="image/*">
-                        </div>
-                    `;
+                    manualScenes[i].prompt = promptRes.data.choices[0].message.content.trim();
                 }
 
-                document.getElementById('scenesContainer').innerHTML = htmlContent;
+                renderScenesUI();
                 document.getElementById('scenesSection').style.display = 'block';
             } catch (error) {
                 alert('خطا در پردازش: ' + (error.response?.data?.error?.message || error.message));
             } finally {
                 document.getElementById('loading').style.display = 'none';
             }
+        }
+
+        function renderScenesUI() {
+            let htmlContent = '<h2>مدیریت صحنه‌ها و زمان‌بندی‌ها</h2>';
+            for (let i = 0; i < manualScenes.length; i++) {
+                const s = manualScenes[i];
+                const sceneIndex = i + 1;
+                htmlContent += `
+                    <div class="scene-card" id="sceneCard_${i}">
+                        <h3>صحنه ${sceneIndex}</h3>
+                        <div class="prompt-text">${s.prompt || 'پرامپت دستی'}</div>
+                        <div class="time-inputs">
+                            <div>
+                                <label>شروع (مثلاً 1:24):</label>
+                                <input type="text" id="start_${i}" value="${secondsToMMSS(s.start)}" onchange="updateTime(${i})">
+                            </div>
+                            <div>
+                                <label>پایان (مثلاً 1:45):</label>
+                                <input type="text" id="end_${i}" value="${secondsToMMSS(s.end)}" onchange="updateTime(${i})">
+                            </div>
+                        </div>
+                        <label>آپلود عکس:</label>
+                        <input type="file" id="imageInput_${i}" accept="image/*">
+                        <button style="background: #ef4444; margin-top: 5px; padding: 6px;" onclick="removeScene(${i})">حذف این صحنه</button>
+                    </div>
+                `;
+            }
+            document.getElementById('scenesContainer').innerHTML = htmlContent;
+        }
+
+        function updateTime(i) {
+            const startStr = document.getElementById(`start_${i}`).value;
+            const endStr = document.getElementById(`end_${i}`).value;
+            manualScenes[i].start = mmssToSeconds(startStr);
+            manualScenes[i].end = mmssToSeconds(endStr);
+        }
+
+        function addSceneManual() {
+            const lastEnd = manualScenes.length > 0 ? manualScenes[manualScenes.length - 1].end : 0;
+            manualScenes.push({ start: lastEnd, end: lastEnd + 30, prompt: "Custom manual scene image prompt" });
+            renderScenesUI();
+        }
+
+        function removeScene(i) {
+            manualScenes.splice(i, 1);
+            renderScenesUI();
         }
 
         async function fileToBase64(file) {
@@ -169,27 +223,15 @@
             });
         }
 
-        // تابع آپلود فوق‌العاده امن که وجود پوشه و فایل را به طور خودکار مدیریت می‌کند
         async function uploadFileToGitHub(owner, repo, filePath, contentBase64, message, headers) {
             let sha = undefined;
             try {
                 const existing = await axios.get(`https://api.github.com/repos/${owner}/${repo}/contents/${filePath}`, { headers });
-                if (existing.data && existing.data.sha) {
-                    sha = existing.data.sha;
-                }
-            } catch (e) {
-                // اگر فایل یا پوشه وجود نداشته باشد، نادیده گرفته می‌شود تا گیت‌هاب خودش به صورت اتوماتیک بسازد
-            }
+                if (existing.data && existing.data.sha) sha = existing.data.sha;
+            } catch (e) {}
 
-            const payload = {
-                message: message,
-                content: contentBase64
-            };
-            
-            if (sha) {
-                payload.sha = sha;
-            }
-
+            const payload = { message: message, content: contentBase64 };
+            if (sha) payload.sha = sha;
             await axios.put(`https://api.github.com/repos/${owner}/${repo}/contents/${filePath}`, payload, { headers });
         }
 
@@ -205,8 +247,15 @@
             }
 
             const statusBox = document.getElementById('statusBox');
+            const statusText = document.getElementById('statusText');
+            const progressBarContainer = document.getElementById('progressBarContainer');
+            const progressBar = document.getElementById('progressBar');
+
             statusBox.style.display = 'block';
-            statusBox.innerHTML = 'مرحله ۱ از ۳: آپلود فایل‌ها و ساخت خودکار پوشه تصاویر در گیت‌هاب...';
+            progressBarContainer.style.display = 'block';
+            statusText.innerHTML = 'در حال آپلود فایل‌ها و عکس‌های سفارشی به گیت‌هاب...';
+            progressBar.style.width = '20%';
+            progressBar.innerHTML = '20%';
 
             const headers = {
                 'Authorization': `Bearer ${token}`,
@@ -215,42 +264,95 @@
             };
 
             try {
-                // آپلود فایل صوتی
                 const audioBase64 = await fileToBase64(audioFile);
-                await uploadFileToGitHub(owner, repo, 'test-audio.mp3', audioBase64, 'Upload audio file via web studio', headers);
+                await uploadFileToGitHub(owner, repo, 'test-audio.mp3', audioBase64, 'Upload audio file', headers);
 
-                // آپلود عکس‌ها و ساخت input.txt
                 let ffmpegInput = '';
-                for (let i = 0; i < detectedChunks.length; i++) {
+                for (let i = 0; i < manualScenes.length; i++) {
                     const fileInput = document.getElementById(`imageInput_${i}`).files[0];
                     const sceneIndex = i + 1;
                     const imageName = `image_${String(sceneIndex).padStart(3, '0')}.jpg`;
-                    const duration = (detectedChunks[i].end - detectedChunks[i].start).toFixed(2);
+                    
+                    const startSec = manualScenes[i].start;
+                    const endSec = manualScenes[i].end;
+                    const duration = Math.max(1, endSec - startSec).toFixed(2);
 
                     if (fileInput) {
                         const imgBase64 = await fileToBase64(fileInput);
-                        await uploadFileToGitHub(owner, repo, `images/${imageName}`, imgBase64, `Auto-name and upload ${imageName}`, headers);
+                        await uploadFileToGitHub(owner, repo, `images/${imageName}`, imgBase64, `Upload ${imageName}`, headers);
                     }
 
                     ffmpegInput += `file 'images/${imageName}'\n`;
                     ffmpegInput += `duration ${duration}\n`;
                 }
 
-                // آپلود فایل تنظیمات فریم‌ورک ویدیو
                 const inputTxtBase64 = btoa(unescape(encodeURIComponent(ffmpegInput)));
-                await uploadFileToGitHub(owner, repo, 'input.txt', inputTxtBase64, 'Update ffmpeg input configuration', headers);
+                await uploadFileToGitHub(owner, repo, 'input.txt', inputTxtBase64, 'Update input.txt', headers);
 
-                statusBox.innerHTML = 'مرحله ۲ از ۳: شروع فرآیند رندر ویدیو در گیت‌هاب...';
+                progressBar.style.width = '50%';
+                progressBar.innerHTML = '50%';
+                statusText.innerHTML = 'در حال راه‌اندازی موتور رندر ابری...';
 
-                // تریگر کردن اکشن گیت‌هاب
                 await axios.post(`https://api.github.com/repos/${owner}/${repo}/actions/workflows/main.yml/dispatches`, {
                     ref: 'main'
                 }, { headers });
 
-                statusBox.innerHTML = 'مرحله ۳ از ۳: ویدیو با موفقیت در پس‌زمینه در حال ساخت است! ۱ الی ۲ دقیقه دیگر به تب Actions در گیت‌هاب سر بزنید تا ویدیوی نهایی را دانلود کنید.';
+                statusText.innerHTML = 'ویدیو در حال ساخت است. لطفاً منتظر بمانید...';
+                pollWorkflowStatus(owner, repo, token);
 
             } catch (error) {
-                statusBox.innerHTML = 'خطا: ' + (error.response?.data?.message || error.message);
+                statusText.innerHTML = 'خطا: ' + (error.response?.data?.message || error.message);
+            }
+        }
+
+        async function pollWorkflowStatus(owner, repo, token) {
+            const headers = {
+                'Authorization': `Bearer ${token}`,
+                'Accept': 'application/vnd.github+json',
+                'X-GitHub-Api-Version': '2022-11-28'
+            };
+
+            const interval = setInterval(async () => {
+                try {
+                    const runsRes = await axios.get(`https://api.github.com/repos/${owner}/${repo}/actions/runs?per_page=1`, { headers });
+                    const run = runsRes.data.workflow_runs[0];
+
+                    if (run) {
+                        if (run.status === 'completed') {
+                            clearInterval(interval);
+                            if (run.conclusion === 'success') {
+                                document.getElementById('progressBar').style.width = '100%';
+                                document.getElementById('progressBar').innerHTML = '100%';
+                                fetchDownloadLink(owner, repo, token);
+                            } else {
+                                document.getElementById('statusText').innerHTML = 'خطا در ساخت ویدیو توسط گیت‌هاب.';
+                            }
+                        } else {
+                            document.getElementById('statusText').innerHTML = `وضعیت رندر: ${run.status} (${run.conclusion || 'در حال انجام'})...`;
+                        }
+                    }
+                } catch (e) {}
+            }, 5000);
+        }
+
+        async function fetchDownloadLink(owner, repo, token) {
+            const headers = {
+                'Authorization': `Bearer ${token}`,
+                'Accept': 'application/vnd.github+json',
+                'X-GitHub-Api-Version': '2022-11-28'
+            };
+
+            try {
+                const artifactsRes = await axios.get(`https://api.github.com/repos/${owner}/${repo}/actions/artifacts`, { headers });
+                const artifact = artifactsRes.data.artifacts[0];
+                if (artifact) {
+                    document.getElementById('statusText').innerHTML = `
+                        <b style="color: #22c55e; font-size: 16px;">ویدیو با موفقیت ساخته شد!</b><br><br>
+                        <a href="${artifact.archive_download_url}" target="_blank" style="background: #0ea5e9; color: white; padding: 10px 20px; text-decoration: none; border-radius: 6px; display: inline-block; font-weight: bold;">دانلود مستقیم فایل ویدیو (ZIP)</a>
+                    `;
+                }
+            } catch (e) {
+                document.getElementById('statusText').innerHTML = 'ویدیو ساخته شد اما در دریافت لینک دانلود مشکلی پیش آمد. از تب Actions می‌توانید دانلود کنید.';
             }
         }
     </script>
