@@ -12,6 +12,8 @@ jobs:
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref }}
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -26,8 +28,8 @@ jobs:
 
       - name: Commit and Push Final Video
         run: |
-          git config --global user.name "GitHub Actions Bot"
+          git config --global user.name "GitHub-Actions-Bot"
           git config --global user.email "actions@github.com"
-          git add final_video.mp4
-          git commit -m "Auto-generated final video [skip ci]" || echo "No changes to commit"
-          git push
+          git add final_video.mp4 || true
+          git commit -m "Auto-generated final video" || true
+          git push origin HEAD:${GITHUB_REF}
