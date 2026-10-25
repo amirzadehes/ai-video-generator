@@ -7,7 +7,7 @@
     <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
     <style>
         body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #0f172a; color: #f8fafc; margin: 0; padding: 20px; display: flex; justify-content: center; }
-        .container { width: 100%; max-width: 1500px; background: #1e293b; padding: 30px; border-radius: 12px; box-shadow: 0 10px 25px rgba(0,0,0,0.3); }
+        .container { width: 100%; max-width: 1100px; background: #1e293b; padding: 30px; border-radius: 12px; box-shadow: 0 10px 25px rgba(0,0,0,0.3); }
         h1 { text-align: center; color: #38bdf8; margin-bottom: 25px; }
         .step-box { background: #334155; padding: 20px; border-radius: 8px; margin-bottom: 20px; }
         label { display: block; margin-bottom: 8px; font-weight: 600; color: #94a3b8; }
@@ -17,8 +17,7 @@
         button { background: #0ea5e9; color: white; border: none; padding: 12px 20px; border-radius: 6px; font-weight: bold; cursor: pointer; width: 100%; transition: background 0.2s; }
         button:hover { background: #0284c7; }
         .scene-card { background: #1e293b; border: 1px solid #475569; padding: 15px; border-radius: 6px; margin-bottom: 15px; }
-        .scenes-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px; }
-        @media (max-width: 1300px) { .scenes-grid { grid-template-columns: repeat(3, 1fr); } }
+        .scenes-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
         @media (max-width: 800px) { .scenes-grid { grid-template-columns: repeat(2, 1fr); } }
         @media (max-width: 520px) { .scenes-grid { grid-template-columns: 1fr; } }
         .scene-card { display: flex; flex-direction: column; margin-bottom: 0; padding: 12px; min-width: 0; }
@@ -157,12 +156,18 @@
 
                 const transcriptContext = segments.map(s => `[${s.start.toFixed(1)}s - ${s.end.toFixed(1)}s] ${s.text.trim()}`).join('\n');
 
-                const systemPrompt = `You are a video director. Analyze the following transcript and split it into logical video scenes ONLY when the topic, subject, or visual context changes.
+                const systemPrompt = `You are a video director. Analyze the following transcript and split it into video scenes.
+
+SCENE SPLITTING RULES:
+- Create a NEW scene ONLY when the topic changes or a genuinely new piece of information, idea, or subject is introduced.
+- Do NOT create a scene per sentence or per time interval. Keep the number of scenes as low as the content allows. A scene may be long (a minute or more) if it stays on the same topic.
+- Scenes must cover the whole transcript without gaps, using exact start and end times in seconds.
+
 Return a valid JSON object containing a "scenes" array. Each object in the array must have:
 "start": (number) exact start time of the scene in seconds,
 "end": (number) exact end time of the scene in seconds,
 "description": (string) a short one-sentence description of what this scene is about, written in the same language as the transcript,
-"prompt": (string) a detailed English image-generation prompt of 80 to 120 words for this scene. Describe the main subject and characters (appearance, clothing, expression, pose), the setting and background details, composition and camera angle, lighting, color palette and mood, and any symbolic or storytelling elements that match what is said in the scene. End the prompt with this exact style: "${IMAGE_STYLE}"
+"prompt": (string) a rich, full, highly detailed English image-generation prompt of 120 to 180 words that visually represents the whole topic of this scene. Describe the main subject and characters (appearance, age, clothing, expression, pose), the setting and every important background detail, objects and symbols that express the idea, composition and camera angle, lighting, color palette, atmosphere and mood, and the sense of story. End the prompt with this exact style: "${IMAGE_STYLE}"
 
 Return ONLY the raw JSON object, with no markdown and no explanation. Do not use double-quote characters inside any string value.
 
