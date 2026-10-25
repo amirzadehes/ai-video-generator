@@ -3,10 +3,7 @@ const fs = require('fs');
 const FormData = require('form-data');
 const path = require('path');
 
-// ==========================================
-// سبک تصویرسازی خود را اینجا تغییر دهید
-const IMAGE_STYLE = "Modern editorial graphic novel illustration";
-// ==========================================
+const IMAGE_STYLE = "Cinematic, realistic, 4k, moody lighting, highly detailed";
 
 function formatTime(seconds) {
     const date = new Date(seconds * 1000);
@@ -18,7 +15,6 @@ function formatTime(seconds) {
 }
 
 async function generateImage(text, index) {
-    // 1. تولید پرامپت با جمنای
     const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${process.env.GEMINI_API_KEY}`;
     const promptCommand = `You are an expert image prompt creator. Write a short, highly descriptive English prompt for an AI image generator based on this text: "${text}". The image MUST strictly follow this art style: "${IMAGE_STYLE}". Reply ONLY with the prompt, no extra words.`;
     
@@ -26,14 +22,17 @@ async function generateImage(text, index) {
     try {
         const geminiRes = await axios.post(geminiUrl, {
             contents: [{ parts: [{ text: promptCommand }] }]
+        }, {
+            headers: { 'Content-Type': 'application/json' }
         });
         imagePrompt = geminiRes.data.candidates[0].content.parts[0].text.trim();
         console.log(`[Scene ${index}] Prompt: ${imagePrompt}`);
     } catch (e) {
-        console.error(`[Scene ${index}] Gemini Error. Using original text.`);
+        // این خط ارور دقیق سرور گوگل را چاپ می‌کند
+        console.error(`[Scene ${index}] Gemini Error Details:`, e.response ? JSON.stringify(e.response.data) : e.message);
+        console.log("Using original text instead.");
     }
 
-    // 2. دانلود تصویر
     const imageUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(imagePrompt)}?width=1920&height=1080&nologo=true`;
     const imageName = `image_${String(index).padStart(3, '0')}.jpg`;
     const imagePath = path.join(__dirname, 'images', imageName);
@@ -58,7 +57,6 @@ async function processAudioToImages(audioFilePath) {
         process.exit(1);
     }
 
-    // فاز ۱: دریافت متن و زمان‌بندی از Groq
     console.log('Phase 1: Sending audio to Groq API...');
     const formData = new FormData();
     formData.append('file', fs.createReadStream(audioFilePath));
@@ -80,14 +78,12 @@ async function processAudioToImages(audioFilePath) {
         process.exit(1);
     }
 
-    // ساخت فایل SRT
     let srtContent = '';
     segments.forEach((seg, index) => {
         srtContent += `${index + 1}\n${formatTime(seg.start)} --> ${formatTime(seg.end)}\n${seg.text.trim()}\n\n`;
     });
     fs.writeFileSync('output.srt', srtContent.trim());
 
-    // فاز ۲: تولید تصاویر و فایل پیکربندی FFmpeg
     console.log('Phase 2: Generating Images...');
     if (!fs.existsSync('images')) fs.mkdirSync('images');
     
@@ -108,7 +104,6 @@ async function processAudioToImages(audioFilePath) {
         }
     }
 
-    // FFmpeg برای عکس آخر نیاز به تکرار نام فایل دارد
     if (lastImageName) {
         ffmpegInput += `file 'images/${lastImageName}'\n`;
     }
