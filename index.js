@@ -1,8 +1,13 @@
 const axios = require('axios');
 const fs = require('fs');
 const FormData = require('form-data');
+const path = require('path');
 
-// تابع تبدیل ثانیه به فرمت زمان‌بندی SRT
+// ==========================================
+// سبک تصویرسازی خود را اینجا تغییر دهید
+const IMAGE_STYLE = "Modern editorial graphic novel illustration";
+// ==========================================
+
 function formatTime(seconds) {
     const date = new Date(seconds * 1000);
     const hh = String(date.getUTCHours()).padStart(2, '0');
@@ -12,20 +17,56 @@ function formatTime(seconds) {
     return `${hh}:${mm}:${ss},${ms}`;
 }
 
-async function generateSRT(audioFilePath) {
-    if (!fs.existsSync(audioFilePath)) {
-        console.error(`File not found: ${audioFilePath}`);
-        process.exit(1); 
+async function generateImage(text, index) {
+    // 1. تولید پرامپت با جمنای
+    const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${process.env.GEMINI_API_KEY}`;
+    const promptCommand = `You are an expert image prompt creator. Write a short, highly descriptive English prompt for an AI image generator based on this text: "${text}". The image MUST strictly follow this art style: "${IMAGE_STYLE}". Reply ONLY with the prompt, no extra words.`;
+    
+    let imagePrompt = text; 
+    try {
+        const geminiRes = await axios.post(geminiUrl, {
+            contents: [{ parts: [{ text: promptCommand }] }]
+        });
+        imagePrompt = geminiRes.data.candidates[0].content.parts[0].text.trim();
+        console.log(`[Scene ${index}] Prompt: ${imagePrompt}`);
+    } catch (e) {
+        console.error(`[Scene ${index}] Gemini Error. Using original text.`);
     }
 
+    // 2. دانلود تصویر
+    const imageUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(imagePrompt)}?width=1920&height=1080&nologo=true`;
+    const imageName = `image_${String(index).padStart(3, '0')}.jpg`;
+    const imagePath = path.join(__dirname, 'images', imageName);
+    
+    try {
+        const imgRes = await axios({ url: imageUrl, responseType: 'stream' });
+        const writer = fs.createWriteStream(imagePath);
+        imgRes.data.pipe(writer);
+        return new Promise((resolve, reject) => {
+            writer.on('finish', () => resolve(imageName));
+            writer.on('error', reject);
+        });
+    } catch (e) {
+        console.error(`[Scene ${index}] Image download failed.`);
+        return null;
+    }
+}
+
+async function processAudioToImages(audioFilePath) {
+    if (!fs.existsSync(audioFilePath)) {
+        console.error(`File not found: ${audioFilePath}`);
+        process.exit(1);
+    }
+
+    // فاز ۱: دریافت متن و زمان‌بندی از Groq
+    console.log('Phase 1: Sending audio to Groq API...');
     const formData = new FormData();
     formData.append('file', fs.createReadStream(audioFilePath));
     formData.append('model', 'whisper-large-v3');
-    // درخواست دیتای کامل همراه با زمان‌بندی
     formData.append('response_format', 'verbose_json'); 
 
+    let segments = [];
     try {
-        console.log('Sending audio to Groq API...');
         const response = await axios.post('https://api.groq.com/openai/v1/audio/transcriptions', formData, {
             headers: {
                 'Authorization': `Bearer ${process.env.GROQ_API_KEY}`,
@@ -33,29 +74,47 @@ async function generateSRT(audioFilePath) {
             },
             maxBodyLength: Infinity,
         });
-
-        const segments = response.data.segments;
-        if (!segments || segments.length === 0) {
-            console.error('No speech segments found.');
-            process.exit(1);
-        }
-
-        // تبدیل دیتای دریافتی به فرمت استاندارد SRT
-        let srtContent = '';
-        segments.forEach((segment, index) => {
-            const startTime = formatTime(segment.start);
-            const endTime = formatTime(segment.end);
-            srtContent += `${index + 1}\n`;
-            srtContent += `${startTime} --> ${endTime}\n`;
-            srtContent += `${segment.text.trim()}\n\n`;
-        });
-
-        fs.writeFileSync('output.srt', srtContent.trim());
-        console.log('Success: output.srt created with exact timestamps!');
+        segments = response.data.segments;
     } catch (error) {
-        console.error('Error:', error.response ? error.response.data : error.message);
+        console.error('Groq Error:', error.response ? error.response.data : error.message);
         process.exit(1);
     }
+
+    // ساخت فایل SRT
+    let srtContent = '';
+    segments.forEach((seg, index) => {
+        srtContent += `${index + 1}\n${formatTime(seg.start)} --> ${formatTime(seg.end)}\n${seg.text.trim()}\n\n`;
+    });
+    fs.writeFileSync('output.srt', srtContent.trim());
+
+    // فاز ۲: تولید تصاویر و فایل پیکربندی FFmpeg
+    console.log('Phase 2: Generating Images...');
+    if (!fs.existsSync('images')) fs.mkdirSync('images');
+    
+    let ffmpegInput = '';
+    let lastImageName = '';
+
+    for (let i = 0; i < segments.length; i++) {
+        const seg = segments[i];
+        const duration = (seg.end - seg.start).toFixed(2);
+        
+        console.log(`Processing Scene ${i + 1}/${segments.length}...`);
+        const imgName = await generateImage(seg.text, i + 1);
+        
+        if (imgName) {
+            ffmpegInput += `file 'images/${imgName}'\n`;
+            ffmpegInput += `duration ${duration}\n`;
+            lastImageName = imgName;
+        }
+    }
+
+    // FFmpeg برای عکس آخر نیاز به تکرار نام فایل دارد
+    if (lastImageName) {
+        ffmpegInput += `file 'images/${lastImageName}'\n`;
+    }
+
+    fs.writeFileSync('input.txt', ffmpegInput);
+    console.log('Success: All images and input.txt generated!');
 }
 
-generateSRT('./test-audio.mp3');
+processAudioToImages('./test-audio.mp3');
