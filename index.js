@@ -3,7 +3,10 @@ const fs = require('fs');
 const FormData = require('form-data');
 const path = require('path');
 
-const IMAGE_STYLE = "Cinematic, realistic, 4k, moody lighting, highly detailed";
+const IMAGE_STYLE = "Modern editorial graphic novel illustration";
+
+// تابع توقف برای جلوگیری از بلاک شدن توسط سرور عکس
+const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
 function formatTime(seconds) {
     const date = new Date(seconds * 1000);
@@ -16,12 +19,12 @@ function formatTime(seconds) {
 
 async function generateImage(text, index) {
     const groqUrl = 'https://api.groq.com/openai/v1/chat/completions';
-    const promptCommand = `Write a short, highly descriptive English prompt for an AI image generator based on this text: "${text}". The image MUST strictly follow this art style: "${IMAGE_STYLE}". Reply ONLY with the prompt, no extra words.`;
+    // دستور کوتاه شدن پرامپت اضافه شد
+    const promptCommand = `Write a VERY SHORT (max 30 words) highly descriptive English prompt for an AI image generator based on this text: "${text}". The image MUST strictly follow this art style: "${IMAGE_STYLE}". Reply ONLY with the prompt, no extra words.`;
     
     let imagePrompt = text; 
     try {
         const groqRes = await axios.post(groqUrl, {
-            // استفاده از مدل جدید و فعال Groq برای اکانت‌های رایگان
             model: "openai/gpt-oss-20b",
             messages: [{ role: "user", content: promptCommand }]
         }, {
@@ -31,9 +34,8 @@ async function generateImage(text, index) {
             }
         });
         imagePrompt = groqRes.data.choices[0].message.content.trim();
-        console.log(`[Scene ${index}] Prompt Generated Successfully.`);
+        console.log(`[Scene ${index}] Prompt Generated: ${imagePrompt.substring(0, 50)}...`);
     } catch (e) {
-        console.error(`[Scene ${index}] Groq Error Details:`, e.response ? JSON.stringify(e.response.data) : e.message);
         console.log(`[Scene ${index}] Using original text.`);
     }
 
@@ -102,6 +104,12 @@ async function processAudioToImages(audioFilePath) {
         if (imgName) {
             ffmpegInput += `file 'images/${imgName}'\n`;
             ffmpegInput += `duration ${duration}\n`;
+        }
+        
+        // ایجاد وقفه 4 ثانیه‌ای قبل از درخواست عکس بعدی
+        if (i < segments.length - 1) {
+            console.log('Waiting 4 seconds to prevent rate limit...');
+            await sleep(4000); 
         }
     }
     fs.writeFileSync('input.txt', ffmpegInput);
