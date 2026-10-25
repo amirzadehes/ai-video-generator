@@ -167,7 +167,7 @@ Return a valid JSON object containing a "scenes" array. Each object in the array
 "start": (number) exact start time of the scene in seconds,
 "end": (number) exact end time of the scene in seconds,
 "description": (string) a short one-sentence description of what this scene is about, written in the same language as the transcript,
-"prompt": (string) a rich, full, highly detailed English image-generation prompt of 120 to 180 words that visually represents the whole topic of this scene. Describe the main subject and characters (appearance, age, clothing, expression, pose), the setting and every important background detail, objects and symbols that express the idea, composition and camera angle, lighting, color palette, atmosphere and mood, and the sense of story. End the prompt with this exact style: "${IMAGE_STYLE}"
+"prompt": (string) a MINIMAL English image-generation prompt of 40 to 70 words that visually represents the whole topic of this scene. Use a clean, minimalist composition: one clear main subject, only a few essential elements, simple shapes, generous negative space, a restrained palette of 2 to 3 colors, soft simple lighting, and no clutter or busy background details. End the prompt with this exact style: "${IMAGE_STYLE}"
 
 Return ONLY the raw JSON object, with no markdown and no explanation. Do not use double-quote characters inside any string value.
 
