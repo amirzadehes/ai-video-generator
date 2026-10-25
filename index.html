@@ -169,23 +169,28 @@
             });
         }
 
-        // تابع هوشمند برای آپلود فایل در صورتی که از قبل وجود داشته باشد (برای جلوگیری از خطای sha)
-        async function uploadFileToGitHub(owner, repo, path, contentBase64, message, headers) {
-            let sha = null;
+        // تابع آپلود فوق‌العاده امن که وجود پوشه و فایل را به طور خودکار مدیریت می‌کند
+        async function uploadFileToGitHub(owner, repo, filePath, contentBase64, message, headers) {
+            let sha = undefined;
             try {
-                const existing = await axios.get(`https://api.github.com/repos/${owner}/${repo}/contents/${path}`, { headers });
-                sha = existing.data.sha;
+                const existing = await axios.get(`https://api.github.com/repos/${owner}/${repo}/contents/${filePath}`, { headers });
+                if (existing.data && existing.data.sha) {
+                    sha = existing.data.sha;
+                }
             } catch (e) {
-                // اگر فایل از قبل نبود، خطایی رخ می‌دهد که نادیده گرفته می‌شود تا فایل جدید ساخته شود
+                // اگر فایل یا پوشه وجود نداشته باشد، نادیده گرفته می‌شود تا گیت‌هاب خودش به صورت اتوماتیک بسازد
             }
 
-            const body = {
+            const payload = {
                 message: message,
                 content: contentBase64
             };
-            if (sha) body.sha = sha;
+            
+            if (sha) {
+                payload.sha = sha;
+            }
 
-            await axios.put(`https://api.github.com/repos/${owner}/${repo}/contents/${path}`, body, { headers });
+            await axios.put(`https://api.github.com/repos/${owner}/${repo}/contents/${filePath}`, payload, { headers });
         }
 
         async function startFullPipeline() {
@@ -201,7 +206,7 @@
 
             const statusBox = document.getElementById('statusBox');
             statusBox.style.display = 'block';
-            statusBox.innerHTML = 'مرحله ۱ از ۳: آپلود هوشمند فایل‌ها و عکس‌ها به گیت‌هاب...';
+            statusBox.innerHTML = 'مرحله ۱ از ۳: آپلود فایل‌ها و ساخت خودکار پوشه تصاویر در گیت‌هاب...';
 
             const headers = {
                 'Authorization': `Bearer ${token}`,
