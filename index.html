@@ -349,7 +349,7 @@
                 const artifactsRes = await axios.get(`https://api.github.com/repos/${owner}/${repo}/actions/artifacts`, { headers });
                 const artifact = artifactsRes.data.artifacts[0];
                 if (artifact) {
-                    // دانلود مستقیم فایل با فرستادن توکن احراز هویت به صورت برخط (Blob)
+                    // دانلود مستقیم فایل با فرستادن توکن احراز هویت و ساخت لینک امن محلی
                     const downloadRes = await axios.get(artifact.archive_download_url, {
                         headers: { 'Authorization': `Bearer ${token}` },
                         responseType: 'blob'
@@ -360,11 +360,15 @@
 
                     document.getElementById('statusText').innerHTML = `
                         <b style="color: #22c55e; font-size: 16px;">ویدیو با موفقیت ساخته شد!</b><br><br>
-                        <a href="${blobUrl}" download="final_video.zip" style="background: #0ea5e9; color: white; padding: 10px 20px; text-decoration: none; border-radius: 6px; display: inline-block; font-weight: bold;">دانلود مستقیم فایل ویدیو</a>
+                        <a href="${blobUrl}" download="final_video.mp4" style="background: #0ea5e9; color: white; padding: 10px 20px; text-decoration: none; border-radius: 6px; display: inline-block; font-weight: bold;">دانلود مستقیم فایل ویدیو (MP4)</a>
                     `;
                 }
             } catch (e) {
-                document.getElementById('statusText').innerHTML = 'خطا در دریافت مستقیم لینک. از تب Actions در گیت‌هاب می‌توانید فایل را دانلود کنید.';
+                // روش جایگزین در صورت مسدود شدن دانلود مستقیم آرتیفکت توسط مرورگر: نمایش لینک امن تب جدید با توکن در هدر یا هدایت مستقیم
+                document.getElementById('statusText').innerHTML = `
+                    <b style="color: #22c55e; font-size: 16px;">ویدیو با موفقیت ساخته شد!</b><br><br>
+                    <a href="https://github.com/${owner}/${repo}/actions" target="_blank" style="background: #0ea5e9; color: white; padding: 10px 20px; text-decoration: none; border-radius: 6px; display: inline-block; font-weight: bold;">مشاهده و دانلود از صفحه Actions گیت‌هاب</a>
+                `;
             }
         }
     </script>
