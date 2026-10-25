@@ -52,10 +52,10 @@
             <label for="audioFile">انتخاب فایل صوتی (MP3):</label>
             <input type="file" id="audioFile" accept="audio/*">
             
-            <button onclick="analyzeAudio()">تحلیل صوت و تولید صحنه‌ها</button>
+            <button onclick="analyzeAudio()">تحلیل هوشمند صوت و تولید صحنه‌ها</button>
         </div>
 
-        <div id="loading" style="text-align: center; color: #38bdf8; font-weight: bold; margin: 15px 0;">در حال تحلیل صوت و استخراج صحنه‌ها با هوش مصنوعی... لطفاً صبر کنید.</div>
+        <div id="loading" style="text-align: center; color: #38bdf8; font-weight: bold; margin: 15px 0;">در حال راه‌اندازی...</div>
         
         <div id="scenesSection">
             <div id="scenesContainer"></div>
@@ -116,7 +116,9 @@
                 return;
             }
 
-            document.getElementById('loading').style.display = 'block';
+            const loadingEl = document.getElementById('loading');
+            loadingEl.style.display = 'block';
+            loadingEl.innerHTML = 'مرحله ۱: استخراج متن از فایل صوتی (Whisper)...';
             document.getElementById('scenesSection').style.display = 'none';
 
             const formData = new FormData();
@@ -125,51 +127,55 @@
             formData.append('response_format', 'verbose_json');
 
             try {
+                // مرحله اول: استخراج کلمات و زمان‌بندی
                 const transcriptionRes = await axios.post('https://api.groq.com/openai/v1/audio/transcriptions', formData, {
                     headers: { 'Authorization': `Bearer ${apiKey}` }
                 });
 
                 const segments = transcriptionRes.data.segments;
-                manualScenes = [];
-                let currentText = '';
-                let chunkStart = segments[0].start;
-                let chunkEnd = segments[0].end;
-                const targetDuration = 30;
+                
+                loadingEl.innerHTML = 'مرحله ۲: تحلیل هوشمند موضوعات و جداسازی صحنه‌ها بر اساس تغییر محتوا...';
 
-                segments.forEach((seg) => {
-                    currentText += ' ' + seg.text;
-                    chunkEnd = seg.end;
-                    if ((chunkEnd - chunkStart) >= targetDuration) {
-                        manualScenes.push({ start: chunkStart, end: chunkEnd, text: currentText.trim() });
-                        currentText = '';
-                        chunkStart = seg.end;
-                    }
+                // ساخت دیتای متنیِ زمان‌بندی‌شده برای ارسال به هوش مصنوعی
+                const transcriptContext = segments.map(s => `[${s.start.toFixed(1)}s - ${s.end.toFixed(1)}s] ${s.text.trim()}`).join('\n');
+
+                const systemPrompt = `You are a video director. Analyze the following transcript and split it into logical video scenes ONLY when the topic, subject, or visual context changes.
+Return a valid JSON object containing a "scenes" array. Each object in the array must have:
+"start": (number) exact start time of the scene in seconds,
+"end": (number) exact end time of the scene in seconds,
+"prompt": (string) an English image prompt for this scene strictly following this style: "${IMAGE_STYLE}"
+
+Transcript:
+${transcriptContext}`;
+
+                // مرحله دوم: تشخیص تغییر موضوع و تولید خروجی JSON ساختاریافته
+                const promptRes = await axios.post('https://api.groq.com/openai/v1/chat/completions', {
+                    model: "llama3-70b-8192",
+                    messages: [{ role: "user", content: systemPrompt }],
+                    response_format: { type: "json_object" }
+                }, {
+                    headers: { 'Authorization': `Bearer ${apiKey}`, 'Content-Type': 'application/json' }
                 });
-                if (currentText.trim().length > 0) {
-                    manualScenes.push({ start: chunkStart, end: chunkEnd, text: currentText.trim() });
-                }
 
-                for (let i = 0; i < manualScenes.length; i++) {
-                    const promptRes = await axios.post('https://api.groq.com/openai/v1/chat/completions', {
-                        model: "openai/gpt-oss-20b",
-                        messages: [{ role: "user", content: `Write a short English image prompt based on this text: "${manualScenes[i].text}". Style: ${IMAGE_STYLE}. Reply ONLY with the prompt.` }]
-                    }, {
-                        headers: { 'Authorization': `Bearer ${apiKey}`, 'Content-Type': 'application/json' }
-                    });
-                    manualScenes[i].prompt = promptRes.data.choices[0].message.content.trim();
-                }
+                const aiData = JSON.parse(promptRes.data.choices[0].message.content);
+                
+                manualScenes = aiData.scenes.map(s => ({
+                    start: parseFloat(s.start) || 0,
+                    end: parseFloat(s.end) || 0,
+                    prompt: s.prompt
+                }));
 
                 renderScenesUI();
                 document.getElementById('scenesSection').style.display = 'block';
             } catch (error) {
                 alert('خطا در پردازش: ' + (error.response?.data?.error?.message || error.message));
             } finally {
-                document.getElementById('loading').style.display = 'none';
+                loadingEl.style.display = 'none';
             }
         }
 
         function renderScenesUI() {
-            let htmlContent = '<h2>مدیریت صحنه‌ها و زمان‌بندی‌ها</h2>';
+            let htmlContent = '<h2>مدیریت هوشمند صحنه‌ها</h2>';
             for (let i = 0; i < manualScenes.length; i++) {
                 const s = manualScenes[i];
                 const sceneIndex = i + 1;
@@ -348,12 +354,11 @@
             let attempts = 0;
             document.getElementById('statusBox').style.display = 'block';
             document.getElementById('progressBarContainer').style.display = 'none';
-            document.getElementById('statusText').innerHTML = 'ویدیو ساخته شد. در حال ذخیره در مخزن گیت‌هاب (این کار ممکن است چند ثانیه طول بکشد)...';
+            document.getElementById('statusText').innerHTML = 'ویدیو ساخته شد. در حال مانیتورینگ برای دریافت لینک نهایی دانلود (این کار ممکن است چند ثانیه طول بکشد)...';
 
             const checkInterval = setInterval(async () => {
                 attempts++;
                 try {
-                    // این خط مستقیماً وجود فایل را از طریق API چک می‌کند و تنها در صورت وجود، لینک را تولید می‌کند
                     const res = await axios.get(`https://api.github.com/repos/${owner}/${repo}/contents/final_video.mp4`, { headers });
                     
                     clearInterval(checkInterval);
@@ -366,7 +371,7 @@
                 } catch (e) {
                     if (attempts >= 15) {
                         clearInterval(checkInterval);
-                        document.getElementById('statusText').innerHTML = '<b style="color: #ef4444;">خطا: ویدیو ساخته شد اما دسترسی نوشتن برای ذخیره فایل در گیت‌هاب (فایل main.yml) وجود نداشت.</b>';
+                        document.getElementById('statusText').innerHTML = '<b style="color: #ef4444;">خطا: ویدیو ساخته شد اما فایل نهایی در مخزن یافت نشد. لطفاً دسترسی Write در فایل main.yml را بررسی کنید.</b>';
                     }
                 }
             }, 3000);
