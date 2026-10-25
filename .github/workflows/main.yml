@@ -19,7 +19,6 @@ jobs:
       - name: Run Script
         env:
           GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
-          HF_TOKEN: ${{ secrets.HF_TOKEN }}
         run: node index.js
 
       - name: Upload Generated Assets
