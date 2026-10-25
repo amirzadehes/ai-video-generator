@@ -72,6 +72,7 @@
 
     <script>
         const IMAGE_STYLE = "Modern editorial graphic novel illustration, full-screen, borderless, edge-to-edge, zero text, no text boxes, no captions, no borders";
+        const GROQ_CHAT_MODEL = "openai/gpt-oss-120b";
         let manualScenes = [];
 
         window.onload = function() {
@@ -148,7 +149,7 @@ ${transcriptContext}`;
 
                 // استفاده از مدل استاندارد، پایدار و همیشه در دسترس Groq
                 const promptRes = await axios.post('https://api.groq.com/openai/v1/chat/completions', {
-                    model: "llama3-8b-8192",
+                    model: GROQ_CHAT_MODEL,
                     messages: [{ role: "user", content: systemPrompt }],
                     response_format: { type: "json_object" }
                 }, {
