@@ -15,22 +15,24 @@ function formatTime(seconds) {
 }
 
 async function generateImage(text, index) {
-    // بازگشت به مدل پایدار پرو برای جلوگیری از خطای نسخه فلش
-    const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-pro:generateContent?key=${process.env.GEMINI_API_KEY}`;
-    const promptCommand = `You are an expert image prompt creator. Write a short, highly descriptive English prompt for an AI image generator based on this text: "${text}". The image MUST strictly follow this art style: "${IMAGE_STYLE}". Reply ONLY with the prompt, no extra words.`;
+    const groqUrl = 'https://api.groq.com/openai/v1/chat/completions';
+    const promptCommand = `Write a short, highly descriptive English prompt for an AI image generator based on this text: "${text}". The image MUST strictly follow this art style: "${IMAGE_STYLE}". Reply ONLY with the prompt, no extra words.`;
     
     let imagePrompt = text; 
     try {
-        const geminiRes = await axios.post(geminiUrl, {
-            contents: [{ parts: [{ text: promptCommand }] }]
+        const groqRes = await axios.post(groqUrl, {
+            model: "llama3-8b-8192",
+            messages: [{ role: "user", content: promptCommand }]
         }, {
-            headers: { 'Content-Type': 'application/json' }
+            headers: { 
+                'Authorization': `Bearer ${process.env.GROQ_API_KEY}`,
+                'Content-Type': 'application/json' 
+            }
         });
-        imagePrompt = geminiRes.data.candidates[0].content.parts[0].text.trim();
-        console.log(`[Scene ${index}] Gemini Prompt Generated Successfully.`);
+        imagePrompt = groqRes.data.choices[0].message.content.trim();
+        console.log(`[Scene ${index}] Llama3 Prompt Generated Successfully.`);
     } catch (e) {
-        // لاگ دقیق ارور تا بفهمیم مشکل کلید شما یا دسترسی چیست
-        console.error(`[Scene ${index}] Gemini Error Details:`, e.response ? JSON.stringify(e.response.data) : e.message);
+        console.error(`[Scene ${index}] Groq Error Details:`, e.response ? JSON.stringify(e.response.data) : e.message);
         console.log(`[Scene ${index}] Using original text instead.`);
     }
 
@@ -75,7 +77,7 @@ async function processAudioToImages(audioFilePath) {
         });
         segments = response.data.segments;
     } catch (error) {
-        console.error('Groq Error:', error.response ? error.response.data : error.message);
+        console.error('Groq Audio Error:', error.response ? error.response.data : error.message);
         process.exit(1);
     }
 
