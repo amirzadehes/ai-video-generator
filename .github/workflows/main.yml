@@ -1,6 +1,8 @@
-name: Generate Assets
+name: Cloud Video Render Pipeline
+
 on:
   workflow_dispatch: 
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -13,19 +15,14 @@ jobs:
         with:
           node-version: '20'
 
-      - name: Install Packages
-        run: npm install axios form-data
+      - name: Install FFmpeg
+        run: sudo apt-get update && sudo apt-get install -y ffmpeg
 
-      - name: Run Script
-        env:
-          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+      - name: Run Video Generation
         run: node index.js
 
-      - name: Upload Generated Assets
+      - name: Upload Final Video Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: Video-Assets
-          path: |
-            output.srt
-            input.txt
-            images/
+          name: Final-Rendered-Video
+          path: final_video.mp4
