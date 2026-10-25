@@ -127,7 +127,6 @@
             formData.append('response_format', 'verbose_json');
 
             try {
-                // مرحله اول: استخراج کلمات و زمان‌بندی
                 const transcriptionRes = await axios.post('https://api.groq.com/openai/v1/audio/transcriptions', formData, {
                     headers: { 'Authorization': `Bearer ${apiKey}` }
                 });
@@ -136,7 +135,6 @@
                 
                 loadingEl.innerHTML = 'مرحله ۲: تحلیل هوشمند موضوعات و جداسازی صحنه‌ها بر اساس تغییر محتوا...';
 
-                // ساخت دیتای متنیِ زمان‌بندی‌شده برای ارسال به هوش مصنوعی
                 const transcriptContext = segments.map(s => `[${s.start.toFixed(1)}s - ${s.end.toFixed(1)}s] ${s.text.trim()}`).join('\n');
 
                 const systemPrompt = `You are a video director. Analyze the following transcript and split it into logical video scenes ONLY when the topic, subject, or visual context changes.
@@ -148,9 +146,9 @@ Return a valid JSON object containing a "scenes" array. Each object in the array
 Transcript:
 ${transcriptContext}`;
 
-                // مرحله دوم: استفاده از مدل جدید و پشتیبانی‌شده‌ی Groq
+                // استفاده از مدل فعال و جدید llama-3.3-70b-versatile
                 const promptRes = await axios.post('https://api.groq.com/openai/v1/chat/completions', {
-                    model: "llama-3.1-70b-versatile",
+                    model: "llama-3.3-70b-versatile",
                     messages: [{ role: "user", content: systemPrompt }],
                     response_format: { type: "json_object" }
                 }, {
