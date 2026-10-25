@@ -5,7 +5,7 @@ const path = require('path');
 const { execSync } = require('child_process'); // برای اجرای دستور ویدیو
 
 // سبک تصویرسازی
-const IMAGE_STYLE = "Cinematic, realistic, 4k, moody lighting, highly detailed";
+const IMAGE_STYLE = "Modern editorial graphic novel illustration";
 
 function formatTime(seconds) {
     const date = new Date(seconds * 1000);
