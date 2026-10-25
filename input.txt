@@ -1,8 +1,8 @@
 file 'images/image_001.jpg'
 duration 32.86
 file 'images/image_002.jpg'
-duration 32.14
+duration 32.12
 file 'images/image_003.jpg'
 duration 31.78
 file 'images/image_004.jpg'
-duration 11.98
+duration 12.00
