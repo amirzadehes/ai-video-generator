@@ -1,4 +1,4 @@
-name: Generate Final Video
+name: Generate Assets Only
 
 on:
   workflow_dispatch: 
@@ -15,9 +15,6 @@ jobs:
         with:
           node-version: '20'
 
-      - name: Install FFmpeg
-        run: sudo apt-get update && sudo apt-get install -y ffmpeg
-
       - name: Install Packages
         run: npm install axios form-data
 
@@ -27,11 +24,11 @@ jobs:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
         run: node index.js
 
-      - name: Upload Final Output
+      - name: Upload Generated Assets
         uses: actions/upload-artifact@v4
         with:
-          name: Final-Video-Project
+          name: Video-Assets
           path: |
-            final_video.mp4
             output.srt
+            input.txt
             images/
