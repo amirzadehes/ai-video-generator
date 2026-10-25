@@ -36,7 +36,6 @@ async function generateImage(text, index) {
     }
 
     const safePrompt = encodeURIComponent(imagePrompt);
-    // استفاده از سرویس پایدار با مکانیزم استعلام مستقیم
     const imageUrl = `https://image.pollinations.ai/prompt/${safePrompt}?width=1920&height=1080&nologo=true&seed=${index}`;
     const imageName = `image_${String(index).padStart(3, '0')}.jpg`;
     const imagePath = path.join(__dirname, 'images', imageName);
@@ -99,28 +98,48 @@ async function processAudioToImages(audioFilePath) {
     });
     fs.writeFileSync('output.srt', srtContent.trim());
 
-    console.log('Phase 2: Generating Images...');
+    console.log('Phase 2: Grouping segments and generating major scene images...');
     if (!fs.existsSync('images')) fs.mkdirSync('images');
-    
+
+    let chunks = [];
+    let currentChunkText = '';
+    let chunkStart = segments[0].start;
+    let chunkEnd = segments[0].end;
+    const targetDuration = 25; 
+
+    segments.forEach((seg) => {
+        currentChunkText += ' ' + seg.text;
+        chunkEnd = seg.end;
+        if ((chunkEnd - chunkStart) >= targetDuration) {
+            chunks.push({ start: chunkStart, end: chunkEnd, text: currentChunkText.trim() });
+            currentChunkText = '';
+            chunkStart = seg.end;
+        }
+    });
+    if (currentChunkText.trim().length > 0) {
+        chunks.push({ start: chunkStart, end: chunkEnd, text: currentChunkText.trim() });
+    }
+
     let ffmpegInput = '';
-    for (let i = 0; i < segments.length; i++) {
-        const seg = segments[i];
-        const duration = (seg.end - seg.start).toFixed(2);
+    for (let i = 0; i < chunks.length; i++) {
+        const chunk = chunks[i];
+        const duration = (chunk.end - chunk.start).toFixed(2);
         
-        console.log(`Processing Scene ${i + 1}/${segments.length}...`);
-        const imgName = await generateImage(seg.text, i + 1);
+        console.log(`Processing Main Scene ${i + 1}/${chunks.length} (Duration: ${duration}s)...`);
+        const imgName = await generateImage(chunk.text, i + 1);
         
         if (imgName) {
             ffmpegInput += `file 'images/${imgName}'\n`;
             ffmpegInput += `duration ${duration}\n`;
         }
         
-        if (i < segments.length - 1) {
+        if (i < chunks.length - 1) {
             await sleep(2000); 
         }
     }
+    
     fs.writeFileSync('input.txt', ffmpegInput);
-    console.log('Success: SRT and Images are ready in the folder!');
+    console.log('Success: Grouped SRT and optimized Images are ready!');
 }
 
 processAudioToImages('./test-audio.mp3');
