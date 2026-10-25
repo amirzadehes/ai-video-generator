@@ -5,7 +5,6 @@ const path = require('path');
 
 const IMAGE_STYLE = "Modern editorial graphic novel illustration";
 
-// تابع توقف برای جلوگیری از بلاک شدن توسط سرور عکس
 const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
 function formatTime(seconds) {
@@ -19,7 +18,6 @@ function formatTime(seconds) {
 
 async function generateImage(text, index) {
     const groqUrl = 'https://api.groq.com/openai/v1/chat/completions';
-    // دستور کوتاه شدن پرامپت اضافه شد
     const promptCommand = `Write a VERY SHORT (max 30 words) highly descriptive English prompt for an AI image generator based on this text: "${text}". The image MUST strictly follow this art style: "${IMAGE_STYLE}". Reply ONLY with the prompt, no extra words.`;
     
     let imagePrompt = text; 
@@ -33,18 +31,27 @@ async function generateImage(text, index) {
                 'Content-Type': 'application/json' 
             }
         });
-        imagePrompt = groqRes.data.choices[0].message.content.trim();
+        imagePrompt = groqRes.data.choices[0].message.content.trim().replace(/[\r\n]+/g, ' ');
         console.log(`[Scene ${index}] Prompt Generated: ${imagePrompt.substring(0, 50)}...`);
     } catch (e) {
         console.log(`[Scene ${index}] Using original text.`);
     }
 
-    const imageUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(imagePrompt)}?width=1920&height=1080&nologo=true`;
+    const safePrompt = encodeURIComponent(imagePrompt);
+    const imageUrl = `https://image.pollinations.ai/prompt/${safePrompt}?width=1920&height=1080&nologo=true`;
     const imageName = `image_${String(index).padStart(3, '0')}.jpg`;
     const imagePath = path.join(__dirname, 'images', imageName);
     
     try {
-        const imgRes = await axios({ url: imageUrl, responseType: 'stream' });
+        const imgRes = await axios({ 
+            url: imageUrl, 
+            responseType: 'stream',
+            headers: {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                'Accept': 'image/webp,image/apng,image/*,*/*;q=0.8'
+            },
+            timeout: 60000 
+        });
         const writer = fs.createWriteStream(imagePath);
         imgRes.data.pipe(writer);
         return new Promise((resolve, reject) => {
@@ -52,7 +59,7 @@ async function generateImage(text, index) {
             writer.on('error', reject);
         });
     } catch (e) {
-        console.error(`[Scene ${index}] Image download failed.`);
+        console.error(`[Scene ${index}] Image download failed:`, e.message);
         return null;
     }
 }
@@ -106,7 +113,6 @@ async function processAudioToImages(audioFilePath) {
             ffmpegInput += `duration ${duration}\n`;
         }
         
-        // ایجاد وقفه 4 ثانیه‌ای قبل از درخواست عکس بعدی
         if (i < segments.length - 1) {
             console.log('Waiting 4 seconds to prevent rate limit...');
             await sleep(4000); 
