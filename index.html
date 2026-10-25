@@ -64,6 +64,14 @@
 
             <hr style="border: 0; border-top: 1px solid #475569; margin: 20px 0;">
 
+            <label for="videoSize">اندازه و نوع ویدیو (قبل از تحلیل انتخاب کنید):</label>
+            <select id="videoSize" style="margin-bottom: 15px;">
+                <option value="1920x1080" data-desc="horizontal 16:9 landscape (YouTube)" selected>افقی 16:9 — یوتیوب (1920×1080)</option>
+                <option value="1080x1920" data-desc="vertical 9:16 portrait (Instagram Reels and Stories)">عمودی 9:16 — اینستاگرام ریلز/استوری (1080×1920)</option>
+                <option value="1080x1350" data-desc="vertical 4:5 portrait (Instagram feed)">عمودی 4:5 — پست اینستاگرام (1080×1350)</option>
+                <option value="1080x1080" data-desc="square 1:1">مربع 1:1 (1080×1080)</option>
+            </select>
+
             <label for="audioFile">انتخاب فایل صوتی (MP3):</label>
             <input type="file" id="audioFile" accept="audio/*">
 
@@ -101,14 +109,6 @@
                     <div>
                         <label for="transitionDuration">مدت انتقال (ثانیه):</label>
                         <input type="text" id="transitionDuration" value="0.8">
-                    </div>
-                    <div>
-                        <label for="videoSize">اندازه ویدیو:</label>
-                        <select id="videoSize">
-                            <option value="1920x1080" selected>افقی 1920×1080</option>
-                            <option value="1080x1920">عمودی 1080×1920</option>
-                            <option value="1080x1080">مربع 1080×1080</option>
-                        </select>
                     </div>
                 </div>
             </div>
@@ -198,6 +198,8 @@
 
                 const transcriptContext = segments.map(s => `[${s.start.toFixed(1)}s - ${s.end.toFixed(1)}s] ${s.text.trim()}`).join('\n');
 
+                const frameDesc = document.getElementById('videoSize').selectedOptions[0].dataset.desc;
+
                 const systemPrompt = `You are a video director. Analyze the following transcript and split it into video scenes.
 
 SCENE SPLITTING RULES:
@@ -209,7 +211,7 @@ Return a valid JSON object containing a "scenes" array. Each object in the array
 "start": (number) exact start time of the scene in seconds,
 "end": (number) exact end time of the scene in seconds,
 "description": (string) a short one-sentence description of what this scene is about, written in the same language as the transcript,
-"prompt": (string) a MINIMAL English image-generation prompt of 40 to 70 words that visually represents the whole topic of this scene. Use a clean, minimalist composition: one clear main subject, only a few essential elements, simple shapes, generous negative space, a restrained palette of 2 to 3 colors, soft simple lighting, and no clutter or busy background details. End the prompt with this exact style: "${IMAGE_STYLE}"
+"prompt": (string) a rich, full, highly detailed English image-generation prompt of 120 to 180 words that visually represents the whole topic of this scene. Describe the main subject and characters (appearance, age, clothing, expression, pose), the setting and every important background detail, objects and symbols that express the idea, composition and camera angle, lighting, color palette, atmosphere and mood, and the sense of story. Compose the image for a ${frameDesc} frame. End the prompt with this exact style: "${IMAGE_STYLE}"
 
 Return ONLY the raw JSON object, with no markdown and no explanation. Do not use double-quote characters inside any string value.
 
