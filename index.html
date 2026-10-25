@@ -17,6 +17,10 @@
         button { background: #0ea5e9; color: white; border: none; padding: 12px 20px; border-radius: 6px; font-weight: bold; cursor: pointer; width: 100%; transition: background 0.2s; }
         button:hover { background: #0284c7; }
         .scene-card { background: #1e293b; border: 1px solid #475569; padding: 15px; border-radius: 6px; margin-bottom: 15px; }
+        .options-row { display: flex; gap: 12px; flex-wrap: wrap; }
+        .options-row > div { flex: 1; min-width: 180px; }
+        select { width: 100%; padding: 12px; background: #0f172a; border: 1px solid #475569; border-radius: 6px; color: #fff; box-sizing: border-box; margin-bottom: 0; }
+        .options-row input[type="text"] { margin-bottom: 0; }
         .scenes-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
         @media (max-width: 800px) { .scenes-grid { grid-template-columns: repeat(2, 1fr); } }
         @media (max-width: 520px) { .scenes-grid { grid-template-columns: 1fr; } }
@@ -70,6 +74,44 @@
 
         <div id="scenesSection">
             <div id="scenesContainer"></div>
+            <div class="step-box" style="margin-top: 20px;">
+                <div class="options-row">
+                    <div>
+                        <label for="transitionType">افکت انتقال بین عکس‌ها:</label>
+                        <select id="transitionType">
+                            <option value="slideleft" selected>لغزش به چپ (شبیه ورق زدن)</option>
+                            <option value="slideright">لغزش به راست</option>
+                            <option value="slideup">لغزش به بالا</option>
+                            <option value="slidedown">لغزش به پایین</option>
+                            <option value="smoothleft">پاک‌شدن نرم به چپ</option>
+                            <option value="smoothright">پاک‌شدن نرم به راست</option>
+                            <option value="wipeleft">پرده به چپ</option>
+                            <option value="wiperight">پرده به راست</option>
+                            <option value="fade">محو شدن</option>
+                            <option value="fadeblack">محو از طریق سیاه</option>
+                            <option value="dissolve">حل شدن</option>
+                            <option value="circleopen">دایره‌ی بازشونده</option>
+                            <option value="circleclose">دایره‌ی بسته‌شونده</option>
+                            <option value="radial">چرخشی</option>
+                            <option value="pixelize">پیکسلی</option>
+                            <option value="random">تصادفی (ترکیبی)</option>
+                            <option value="none">بدون افکت (برش مستقیم)</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label for="transitionDuration">مدت انتقال (ثانیه):</label>
+                        <input type="text" id="transitionDuration" value="0.8">
+                    </div>
+                    <div>
+                        <label for="videoSize">اندازه ویدیو:</label>
+                        <select id="videoSize">
+                            <option value="1920x1080" selected>افقی 1920×1080</option>
+                            <option value="1080x1920">عمودی 1080×1920</option>
+                            <option value="1080x1080">مربع 1080×1080</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
             <button class="render-btn" onclick="startFullPipeline()">آپلود عکس‌ها و ساخت نهایی ویدیو</button>
         </div>
 
@@ -357,6 +399,16 @@ ${transcriptContext}`;
 
                 const inputTxtBase64 = btoa(unescape(encodeURIComponent(ffmpegInput)));
                 await uploadFileToGitHub(owner, repo, 'input.txt', inputTxtBase64, 'Update input.txt', headers);
+
+                const [vw, vh] = document.getElementById('videoSize').value.split('x').map(Number);
+                const configObj = {
+                    transition: document.getElementById('transitionType').value,
+                    transitionDuration: parseFloat(document.getElementById('transitionDuration').value) || 0.8,
+                    width: vw,
+                    height: vh
+                };
+                const configBase64 = btoa(unescape(encodeURIComponent(JSON.stringify(configObj))));
+                await uploadFileToGitHub(owner, repo, 'config.json', configBase64, 'Update config.json', headers);
 
                 progressBar.style.width = '50%';
                 progressBar.innerHTML = '50%';
