@@ -101,8 +101,7 @@
                         <div class="scene-card">
                             <h3>Scene ${sceneIndex} (${chunk.start.toFixed(1)}s - ${chunk.end.toFixed(1)}s)</h3>
                             <div class="prompt-text">${prompt}</div>
-                            <p style="color: #94a3b8; font-size: 14px;">Upload your generated image here. It will be mapped automatically as scene ${sceneIndex}.</p>
-                            <input type="file" accept="image/*">
+                            <p style="color: #94a3b8; font-size: 14px;">برای این صحنه تصویر بسازید و نام آن را دقیقاً به شکل <b>image_${String(sceneIndex).padStart(3, '0')}.jpg</b> در پوشه images مخزن آپلود کنید.</p>
                         </div>
                     `;
                 }
