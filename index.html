@@ -7,7 +7,7 @@
     <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
     <style>
         body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #0f172a; color: #f8fafc; margin: 0; padding: 20px; display: flex; justify-content: center; }
-        .container { width: 100%; max-width: 850px; background: #1e293b; padding: 30px; border-radius: 12px; box-shadow: 0 10px 25px rgba(0,0,0,0.3); }
+        .container { width: 100%; max-width: 1500px; background: #1e293b; padding: 30px; border-radius: 12px; box-shadow: 0 10px 25px rgba(0,0,0,0.3); }
         h1 { text-align: center; color: #38bdf8; margin-bottom: 25px; }
         .step-box { background: #334155; padding: 20px; border-radius: 8px; margin-bottom: 20px; }
         label { display: block; margin-bottom: 8px; font-weight: 600; color: #94a3b8; }
@@ -17,10 +17,20 @@
         button { background: #0ea5e9; color: white; border: none; padding: 12px 20px; border-radius: 6px; font-weight: bold; cursor: pointer; width: 100%; transition: background 0.2s; }
         button:hover { background: #0284c7; }
         .scene-card { background: #1e293b; border: 1px solid #475569; padding: 15px; border-radius: 6px; margin-bottom: 15px; }
-        .scene-card h3 { margin-top: 0; line-height: 1.7; }
-        .copy-btn { background: #8b5cf6; margin-bottom: 15px; }
+        .scenes-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px; }
+        @media (max-width: 1300px) { .scenes-grid { grid-template-columns: repeat(3, 1fr); } }
+        @media (max-width: 800px) { .scenes-grid { grid-template-columns: repeat(2, 1fr); } }
+        @media (max-width: 520px) { .scenes-grid { grid-template-columns: 1fr; } }
+        .scene-card { display: flex; flex-direction: column; margin-bottom: 0; padding: 12px; min-width: 0; }
+        .scene-card h3 { margin: 0 0 10px 0; font-size: 14px; line-height: 1.7; flex: 1; }
+        .scene-actions { display: flex; gap: 6px; margin-bottom: 10px; }
+        .scene-actions button { width: auto; flex: 1; padding: 8px 4px; font-size: 13px; }
+        .copy-btn { background: #8b5cf6; }
         .copy-btn:hover { background: #7c3aed; }
-        .scene-actions { display: flex; gap: 10px; }
+        .scene-inputs { display: flex; gap: 6px; align-items: center; }
+        .scene-inputs input { margin-bottom: 0; padding: 6px; font-size: 12px; min-width: 0; }
+        .scene-inputs input[type="file"] { flex: 2; }
+        .scene-inputs input[type="text"] { flex: 1; text-align: center; }
         #loading, #scenesSection { display: none; }
         .render-btn { background: #22c55e; margin-top: 20px; }
         .render-btn:hover { background: #16a34a; }
@@ -152,20 +162,37 @@ Return a valid JSON object containing a "scenes" array. Each object in the array
 "start": (number) exact start time of the scene in seconds,
 "end": (number) exact end time of the scene in seconds,
 "description": (string) a short one-sentence description of what this scene is about, written in the same language as the transcript,
-"prompt": (string) an English image prompt for this scene strictly following this style: "${IMAGE_STYLE}"
+"prompt": (string) a detailed English image-generation prompt of 80 to 120 words for this scene. Describe the main subject and characters (appearance, clothing, expression, pose), the setting and background details, composition and camera angle, lighting, color palette and mood, and any symbolic or storytelling elements that match what is said in the scene. End the prompt with this exact style: "${IMAGE_STYLE}"
+
+Return ONLY the raw JSON object, with no markdown and no explanation. Do not use double-quote characters inside any string value.
 
 Transcript:
 ${transcriptContext}`;
 
-                const promptRes = await axios.post('https://api.groq.com/openai/v1/chat/completions', {
-                    model: GROQ_CHAT_MODEL,
-                    messages: [{ role: "user", content: systemPrompt }],
-                    response_format: { type: "json_object" }
-                }, {
-                    headers: { 'Authorization': `Bearer ${apiKey}`, 'Content-Type': 'application/json' }
-                });
+                let aiData = null;
+                let lastError = null;
+                for (let attempt = 1; attempt <= 3 && !aiData; attempt++) {
+                    try {
+                        const promptRes = await axios.post('https://api.groq.com/openai/v1/chat/completions', {
+                            model: GROQ_CHAT_MODEL,
+                            messages: [{ role: "user", content: systemPrompt }],
+                            reasoning_effort: "low",
+                            max_completion_tokens: 16000
+                        }, {
+                            headers: { 'Authorization': `Bearer ${apiKey}`, 'Content-Type': 'application/json' }
+                        });
 
-                const aiData = JSON.parse(promptRes.data.choices[0].message.content);
+                        const raw = promptRes.data.choices[0].message.content || '';
+                        const jsonText = raw.slice(raw.indexOf('{'), raw.lastIndexOf('}') + 1);
+                        const parsed = JSON.parse(jsonText);
+                        if (!parsed.scenes || !parsed.scenes.length) throw new Error('هیچ صحنه‌ای تولید نشد');
+                        aiData = parsed;
+                    } catch (e) {
+                        lastError = e;
+                        loadingEl.innerHTML = `مرحله ۲: تلاش مجدد (${attempt}/3)...`;
+                    }
+                }
+                if (!aiData) throw lastError;
 
                 manualScenes = aiData.scenes.map(s => ({
                     start: parseFloat(s.start) || 0,
@@ -184,32 +211,26 @@ ${transcriptContext}`;
         }
 
         function renderScenesUI() {
-            let htmlContent = '<h2>مدیریت هوشمند صحنه‌ها</h2>';
+            let htmlContent = '<h2>مدیریت هوشمند صحنه‌ها</h2><div class="scenes-grid">';
             for (let i = 0; i < manualScenes.length; i++) {
                 const s = manualScenes[i];
                 htmlContent += `
                     <div class="scene-card" id="sceneCard_${i}">
                         <h3>${escapeHtml(s.description) || 'صحنه جدید'}</h3>
-                        <button class="copy-btn" id="copyBtn_${i}" onclick="copyPrompt(${i})">📋 کپی پرامپت تولید عکس</button>
-                        <div class="time-inputs">
-                            <div>
-                                <label>شروع (مثلاً 1:24):</label>
-                                <input type="text" id="start_${i}" value="${secondsToMMSS(s.start)}" onchange="updateTime(${i})">
-                            </div>
-                            <div>
-                                <label>پایان (مثلاً 1:45):</label>
-                                <input type="text" id="end_${i}" value="${secondsToMMSS(s.end)}" onchange="updateTime(${i})">
-                            </div>
-                        </div>
-                        <label>آپلود عکس:</label>
-                        <input type="file" id="imageInput_${i}" accept="image/*">
                         <div class="scene-actions">
-                            <button style="background: #10b981; padding: 8px;" onclick="addSceneBelow(${i})">+ افزودن صحنه جدید در زیر این صحنه</button>
-                            <button style="background: #ef4444; padding: 8px;" onclick="removeScene(${i})">حذف این صحنه</button>
+                            <button class="copy-btn" id="copyBtn_${i}" onclick="copyPrompt(${i})" title="کپی پرامپت تولید عکس">📋 پرامپت</button>
+                            <button style="background: #10b981;" onclick="addSceneBelow(${i})" title="افزودن صحنه جدید در زیر این صحنه">➕ صحنه</button>
+                            <button style="background: #ef4444;" onclick="removeScene(${i})" title="حذف این صحنه">🗑 حذف</button>
+                        </div>
+                        <div class="scene-inputs">
+                            <input type="file" id="imageInput_${i}" accept="image/*" title="آپلود عکس">
+                            <input type="text" id="start_${i}" value="${secondsToMMSS(s.start)}" onchange="updateTime(${i})" title="شروع (مثلاً 1:24)" placeholder="شروع">
+                            <input type="text" id="end_${i}" value="${secondsToMMSS(s.end)}" onchange="updateTime(${i})" title="پایان (مثلاً 1:45)" placeholder="پایان">
                         </div>
                     </div>
                 `;
             }
+            htmlContent += '</div>';
             document.getElementById('scenesContainer').innerHTML = htmlContent;
         }
 
@@ -230,7 +251,7 @@ ${transcriptContext}`;
             const btn = document.getElementById(`copyBtn_${i}`);
             if (btn) {
                 btn.innerHTML = '✅ کپی شد';
-                setTimeout(() => { btn.innerHTML = '📋 کپی پرامپت تولید عکس'; }, 1500);
+                setTimeout(() => { btn.innerHTML = '📋 پرامپت'; }, 1500);
             }
         }
 
