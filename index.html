@@ -2,76 +2,116 @@
 <html lang="en" dir="ltr">
 <head>
     <meta charset="UTF-8">
-    <title>AI Video Studio</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cloud AI Video Studio</title>
     <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
     <style>
-        body { font-family: sans-serif; background: #0f172a; color: #f8fafc; padding: 20px; display: flex; justify-content: center; }
-        .container { width: 100%; max-width: 800px; background: #1e293b; padding: 30px; border-radius: 12px; }
-        input, button { width: 100%; padding: 12px; margin-bottom: 15px; background: #0f172a; border: 1px solid #475569; color: #fff; border-radius: 6px; box-sizing: border-box; }
-        button { background: #0ea5e9; font-weight: bold; cursor: pointer; }
-        .scene-card { background: #334155; padding: 15px; border-radius: 6px; margin-bottom: 15px; }
-        .prompt { color: #38bdf8; font-family: monospace; margin-bottom: 10px; }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #0f172a; color: #f8fafc; margin: 0; padding: 20px; display: flex; justify-content: center; }
+        .container { width: 100%; max-width: 800px; background: #1e293b; padding: 30px; border-radius: 12px; box-shadow: 0 10px 25px rgba(0,0,0,0.3); }
+        h1 { text-align: center; color: #38bdf8; margin-bottom: 25px; }
+        .step-box { background: #334155; padding: 20px; border-radius: 8px; margin-bottom: 20px; }
+        label { display: block; margin-bottom: 8px; font-weight: 600; color: #94a3b8; }
+        input[type="text"], input[type="file"] { width: 100%; padding: 12px; background: #0f172a; border: 1px solid #475569; border-radius: 6px; color: #fff; box-sizing: border-box; margin-bottom: 15px; }
+        button { background: #0ea5e9; color: white; border: none; padding: 12px 20px; border-radius: 6px; font-weight: bold; cursor: pointer; width: 100%; transition: background 0.2s; }
+        button:hover { background: #0284c7; }
+        .scene-card { background: #1e293b; border: 1px solid #475569; padding: 15px; border-radius: 6px; margin-bottom: 15px; }
+        .prompt-text { background: #0f172a; padding: 10px; border-radius: 4px; color: #38bdf8; font-family: monospace; word-break: break-all; margin-bottom: 10px; }
+        #loading { display: none; text-align: center; color: #38bdf8; font-weight: bold; margin: 15px 0; }
     </style>
 </head>
 <body>
     <div class="container">
-        <h1>AI Video Generation Studio</h1>
-        <input type="text" id="groqKey" placeholder="Enter Groq API Key">
-        <input type="file" id="audioFile" accept="audio/*">
-        <button onclick="analyze()">Analyze Audio & Get Prompts</button>
+        <h1>Cloud AI Video Studio</h1>
+        
+        <div class="step-box">
+            <label for="groqKey">Groq API Key:</label>
+            <input type="text" id="groqKey" placeholder="gsk_...">
+            
+            <label for="audioFile">Select Audio File (MP3):</label>
+            <input type="file" id="audioFile" accept="audio/*">
+            
+            <button onclick="analyzeAudio()">Analyze Audio & Generate Prompts</button>
+        </div>
 
-        <div id="scenesSection"></div>
-        <button id="renderBtn" style="display:none; background: #22c55e;" onclick="renderVideo()">Render Final Video</button>
-        <div id="result"></div>
+        <div id="loading">Analyzing audio and extracting scenes via AI... Please wait.</div>
+        <div id="scenesContainer"></div>
     </div>
 
     <script>
-        let totalScenes = 0;
+        const IMAGE_STYLE = "Modern editorial graphic novel illustration";
 
-        async function analyze() {
-            const apiKey = document.getElementById('groqKey').value;
-            const audioFile = document.getElementById('audioFile').files[0];
-            const formData = new FormData();
-            formData.append('apiKey', apiKey);
-            formData.append('audio', audioFile);
-
-            document.getElementById('scenesSection').innerHTML = 'Analyzing... Please wait.';
-
-            const res = await axios.post('/api/analyze', formData);
-            const scenes = res.data.scenes;
-            totalScenes = scenes.length;
-
-            let html = '<h2>Generated Prompts & Upload Images</h2>';
-            scenes.forEach(s => {
-                html += `
-                    <div class="scene-card">
-                        <h3>Scene ${s.scene} (${s.start.toFixed(1)}s - ${s.end.toFixed(1)}s)</h3>
-                        <div class="prompt">${s.prompt}</div>
-                        <label>Upload Image for Scene ${s.scene}:</label>
-                        <input type="file" id="img_${s.scene}" accept="image/*">
-                    </div>
-                `;
-            });
-
-            document.getElementById('scenesSection').innerHTML = html;
-            document.getElementById('renderBtn').style.display = 'block';
-        }
-
-        async function renderVideo() {
-            const formData = new FormData();
-            for (let i = 1; i <= totalScenes; i++) {
-                const fileInput = document.getElementById(`img_${i}`).files[0];
-                if (fileInput) {
-                    const autoNamedFile = new File([fileInput], `image_${String(i).padStart(3, '0')}.jpg`, { type: fileInput.type });
-                    formData.append('images', autoNamedFile);
-                }
+        async function analyzeAudio() {
+            const apiKey = document.getElementById('groqKey').value.trim();
+            const fileInput = document.getElementById('audioFile').files[0];
+            
+            if (!apiKey || !fileInput) {
+                alert('Please enter your Groq API Key and select an audio file.');
+                return;
             }
 
-            document.getElementById('result').innerHTML = 'Rendering video with FFmpeg... Please wait.';
-            const res = await axios.post('/api/render', formData);
-            
-            if (res.data.success) {
-                document.getElementById('result').innerHTML = `<a href="${res.data.downloadUrl}" download="final_video.mp4" style="color: #38bdf8; font-size: 18px; font-weight: bold;">Download Final Video (MP4)</a>`;
+            document.getElementById('loading').style.display = 'block';
+            document.getElementById('scenesContainer').innerHTML = '';
+
+            const formData = new FormData();
+            formData.append('file', fileInput);
+            formData.append('model', 'whisper-large-v3');
+            formData.append('response_format', 'verbose_json');
+
+            try {
+                const transcriptionRes = await axios.post('https://api.groq.com/openai/v1/audio/transcriptions', formData, {
+                    headers: { 'Authorization': `Bearer ${apiKey}` }
+                });
+
+                const segments = transcriptionRes.data.segments;
+                
+                let chunks = [];
+                let currentText = '';
+                let chunkStart = segments[0].start;
+                let chunkEnd = segments[0].end;
+                const targetDuration = 30;
+
+                segments.forEach((seg) => {
+                    currentText += ' ' + seg.text;
+                    chunkEnd = seg.end;
+                    if ((chunkEnd - chunkStart) >= targetDuration) {
+                        chunks.push({ start: chunkStart, end: chunkEnd, text: currentText.trim() });
+                        currentText = '';
+                        chunkStart = seg.end;
+                    }
+                });
+                if (currentText.trim().length > 0) {
+                    chunks.push({ start: chunkStart, end: chunkEnd, text: currentText.trim() });
+                }
+
+                let htmlContent = '<h2>Extracted Scenes & Prompts</h2>';
+                for (let i = 0; i < chunks.length; i++) {
+                    const chunk = chunks[i];
+                    const sceneIndex = i + 1;
+                    
+                    const promptRes = await axios.post('https://api.groq.com/openai/v1/chat/completions', {
+                        model: "openai/gpt-oss-20b",
+                        messages: [{ role: "user", content: `Write a short English image prompt based on this text: "${chunk.text}". Style: ${IMAGE_STYLE}. Reply ONLY with the prompt.` }]
+                    }, {
+                        headers: { 'Authorization': `Bearer ${apiKey}`, 'Content-Type': 'application/json' }
+                    });
+
+                    const prompt = promptRes.data.choices[0].message.content.trim();
+                    
+                    htmlContent += `
+                        <div class="scene-card">
+                            <h3>Scene ${sceneIndex} (${chunk.start.toFixed(1)}s - ${chunk.end.toFixed(1)}s)</h3>
+                            <div class="prompt-text">${prompt}</div>
+                            <p style="color: #94a3b8; font-size: 14px;">Upload your generated image here. It will be mapped automatically as scene ${sceneIndex}.</p>
+                            <input type="file" accept="image/*">
+                        </div>
+                    `;
+                }
+
+                document.getElementById('scenesContainer').innerHTML = htmlContent;
+            } catch (error) {
+                alert('Error during processing: ' + (error.response?.data?.error?.message || error.message));
+            } finally {
+                document.getElementById('loading').style.display = 'none';
             }
         }
     </script>
