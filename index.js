@@ -4,7 +4,6 @@ const FormData = require('form-data');
 const path = require('path');
 
 const IMAGE_STYLE = "Modern editorial graphic novel illustration";
-
 const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
 function formatTime(seconds) {
@@ -17,6 +16,7 @@ function formatTime(seconds) {
 }
 
 async function generateImage(text, index) {
+    // 1. تولید پرامپت با Groq
     const groqUrl = 'https://api.groq.com/openai/v1/chat/completions';
     const promptCommand = `Write a VERY SHORT (max 30 words) highly descriptive English prompt for an AI image generator based on this text: "${text}". The image MUST strictly follow this art style: "${IMAGE_STYLE}". Reply ONLY with the prompt, no extra words.`;
     
@@ -32,36 +32,43 @@ async function generateImage(text, index) {
             }
         });
         imagePrompt = groqRes.data.choices[0].message.content.trim().replace(/[\r\n]+/g, ' ');
-        console.log(`[Scene ${index}] Prompt Generated: ${imagePrompt.substring(0, 50)}...`);
+        console.log(`[Scene ${index}] Prompt: ${imagePrompt.substring(0, 50)}...`);
     } catch (e) {
-        console.log(`[Scene ${index}] Using original text.`);
+        console.log(`[Scene ${index}] Using original text for prompt.`);
     }
 
-    const safePrompt = encodeURIComponent(imagePrompt);
-    const imageUrl = `https://image.pollinations.ai/prompt/${safePrompt}?width=1920&height=1080&nologo=true`;
+    // 2. تولید تصویر با Hugging Face (مدل Stable Diffusion XL)
+    const hfUrl = 'https://api-inference.huggingface.co/models/stabilityai/stable-diffusion-xl-base-1.0';
     const imageName = `image_${String(index).padStart(3, '0')}.jpg`;
     const imagePath = path.join(__dirname, 'images', imageName);
     
-    try {
-        const imgRes = await axios({ 
-            url: imageUrl, 
-            responseType: 'stream',
-            headers: {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-                'Accept': 'image/webp,image/apng,image/*,*/*;q=0.8'
-            },
-            timeout: 60000 
-        });
-        const writer = fs.createWriteStream(imagePath);
-        imgRes.data.pipe(writer);
-        return new Promise((resolve, reject) => {
-            writer.on('finish', () => resolve(imageName));
-            writer.on('error', reject);
-        });
-    } catch (e) {
-        console.error(`[Scene ${index}] Image download failed:`, e.message);
-        return null;
+    let retries = 3;
+    for (let i = 0; i < retries; i++) {
+        try {
+            const imgRes = await axios.post(hfUrl, { inputs: imagePrompt }, {
+                headers: { 
+                    'Authorization': `Bearer ${process.env.HF_TOKEN}`,
+                    'Content-Type': 'application/json'
+                },
+                responseType: 'arraybuffer',
+                timeout: 120000 // زمان کافی برای پردازش مدل
+            });
+            fs.writeFileSync(imagePath, imgRes.data);
+            console.log(`[Scene ${index}] Image successfully saved.`);
+            return imageName;
+        } catch (error) {
+            const status = error.response ? error.response.status : 'Network Error';
+            if (status === 503) {
+                console.log(`[Scene ${index}] Model is loading on HuggingFace... Waiting 15s (Attempt ${i + 1}/${retries})`);
+                await sleep(15000);
+            } else {
+                console.error(`[Scene ${index}] Image API Error: ${status}`);
+                if (i === retries - 1) return null;
+                await sleep(5000);
+            }
+        }
     }
+    return null;
 }
 
 async function processAudioToImages(audioFilePath) {
@@ -87,7 +94,7 @@ async function processAudioToImages(audioFilePath) {
         });
         segments = response.data.segments;
     } catch (error) {
-        console.error('Groq Audio Error:', error.response ? error.response.data : error.message);
+        console.error('Groq Audio Error:', error.message);
         process.exit(1);
     }
 
@@ -97,7 +104,7 @@ async function processAudioToImages(audioFilePath) {
     });
     fs.writeFileSync('output.srt', srtContent.trim());
 
-    console.log('Phase 2: Generating Images...');
+    console.log('Phase 2: Generating Images with Hugging Face...');
     if (!fs.existsSync('images')) fs.mkdirSync('images');
     
     let ffmpegInput = '';
@@ -105,21 +112,16 @@ async function processAudioToImages(audioFilePath) {
         const seg = segments[i];
         const duration = (seg.end - seg.start).toFixed(2);
         
-        console.log(`Processing Scene ${i + 1}/${segments.length}...`);
+        console.log(`\nProcessing Scene ${i + 1}/${segments.length}...`);
         const imgName = await generateImage(seg.text, i + 1);
         
         if (imgName) {
             ffmpegInput += `file 'images/${imgName}'\n`;
             ffmpegInput += `duration ${duration}\n`;
         }
-        
-        if (i < segments.length - 1) {
-            console.log('Waiting 4 seconds to prevent rate limit...');
-            await sleep(4000); 
-        }
     }
     fs.writeFileSync('input.txt', ffmpegInput);
-    console.log('Success: SRT and Images are ready in the folder!');
+    console.log('\nSuccess: SRT and Images are ready in the folder!');
 }
 
 processAudioToImages('./test-audio.mp3');
