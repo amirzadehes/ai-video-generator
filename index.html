@@ -30,33 +30,33 @@
 <body>
     <div class="container">
         <h1>Cloud AI Video Studio Pro</h1>
-        
+
         <div class="step-box">
             <details id="configDetails">
                 <summary style="cursor: pointer; font-weight: bold; color: #38bdf8; margin-bottom: 15px;">تنظیمات پایه‌ای (ذخیره‌شده)</summary>
                 <label for="groqKey">Groq API Key:</label>
                 <input type="text" id="groqKey" placeholder="gsk_..." onchange="saveConfig()">
-                
+
                 <label for="githubToken">GitHub Personal Access Token:</label>
                 <input type="text" id="githubToken" placeholder="ghp_..." onchange="saveConfig()">
-                
+
                 <label for="repoOwner">GitHub Username:</label>
                 <input type="text" id="repoOwner" placeholder="username" onchange="saveConfig()">
-                
+
                 <label for="repoName">Repository Name:</label>
                 <input type="text" id="repoName" placeholder="repository-name" onchange="saveConfig()">
             </details>
-            
+
             <hr style="border: 0; border-top: 1px solid #475569; margin: 20px 0;">
 
             <label for="audioFile">انتخاب فایل صوتی (MP3):</label>
             <input type="file" id="audioFile" accept="audio/*">
-            
+
             <button onclick="analyzeAudio()">تحلیل هوشمند صوت و تولید صحنه‌ها</button>
         </div>
 
         <div id="loading" style="text-align: center; color: #38bdf8; font-weight: bold; margin: 15px 0;">در حال راه‌اندازی...</div>
-        
+
         <div id="scenesSection">
             <div id="scenesContainer"></div>
             <button class="render-btn" onclick="startFullPipeline()">آپلود عکس‌ها و ساخت نهایی ویدیو</button>
@@ -72,7 +72,10 @@
 
     <script>
         const IMAGE_STYLE = "Modern editorial graphic novel illustration, full-screen, borderless, edge-to-edge, zero text, no text boxes, no captions, no borders";
+
+        // مدل چت Groq: اگر در آینده منسوخ شد، فقط همین یک خط را عوض کنید
         const GROQ_CHAT_MODEL = "openai/gpt-oss-120b";
+
         let manualScenes = [];
 
         window.onload = function() {
@@ -111,7 +114,7 @@
             saveConfig();
             const apiKey = document.getElementById('groqKey').value.trim();
             const fileInput = document.getElementById('audioFile').files[0];
-            
+
             if (!apiKey || !fileInput) {
                 alert('لطفاً کلید Groq API و فایل صوتی را وارد/انتخاب کنید.');
                 return;
@@ -133,7 +136,7 @@
                 });
 
                 const segments = transcriptionRes.data.segments;
-                
+
                 loadingEl.innerHTML = 'مرحله ۲: تحلیل هوشمند موضوعات و جداسازی صحنه‌ها بر اساس تغییر محتوا...';
 
                 const transcriptContext = segments.map(s => `[${s.start.toFixed(1)}s - ${s.end.toFixed(1)}s] ${s.text.trim()}`).join('\n');
@@ -147,7 +150,6 @@ Return a valid JSON object containing a "scenes" array. Each object in the array
 Transcript:
 ${transcriptContext}`;
 
-                // استفاده از مدل استاندارد، پایدار و همیشه در دسترس Groq
                 const promptRes = await axios.post('https://api.groq.com/openai/v1/chat/completions', {
                     model: GROQ_CHAT_MODEL,
                     messages: [{ role: "user", content: systemPrompt }],
@@ -157,7 +159,7 @@ ${transcriptContext}`;
                 });
 
                 const aiData = JSON.parse(promptRes.data.choices[0].message.content);
-                
+
                 manualScenes = aiData.scenes.map(s => ({
                     start: parseFloat(s.start) || 0,
                     end: parseFloat(s.end) || 0,
@@ -280,7 +282,7 @@ ${transcriptContext}`;
                     const fileInput = document.getElementById(`imageInput_${i}`).files[0];
                     const sceneIndex = i + 1;
                     const imageName = `image_${String(sceneIndex).padStart(3, '0')}.jpg`;
-                    
+
                     const startSec = manualScenes[i].start;
                     const endSec = manualScenes[i].end;
                     const duration = Math.max(1, endSec - startSec).toFixed(2);
@@ -359,7 +361,7 @@ ${transcriptContext}`;
                 attempts++;
                 try {
                     const res = await axios.get(`https://api.github.com/repos/${owner}/${repo}/contents/final_video.mp4`, { headers });
-                    
+
                     clearInterval(checkInterval);
                     const downloadUrl = res.data.download_url;
 
