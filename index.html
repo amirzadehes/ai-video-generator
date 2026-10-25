@@ -148,9 +148,9 @@ Return a valid JSON object containing a "scenes" array. Each object in the array
 Transcript:
 ${transcriptContext}`;
 
-                // مرحله دوم: تشخیص تغییر موضوع و تولید خروجی JSON ساختاریافته
+                // مرحله دوم: استفاده از مدل جدید و پشتیبانی‌شده‌ی Groq
                 const promptRes = await axios.post('https://api.groq.com/openai/v1/chat/completions', {
-                    model: "llama3-70b-8192",
+                    model: "llama-3.1-70b-versatile",
                     messages: [{ role: "user", content: systemPrompt }],
                     response_format: { type: "json_object" }
                 }, {
