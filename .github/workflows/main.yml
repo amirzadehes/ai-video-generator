@@ -21,8 +21,10 @@ jobs:
       - name: Run Video Generation
         run: node index.js
 
-      - name: Upload Final Video Artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: Final-Rendered-Video
-          path: final_video.mp4
+      - name: Commit and Push Final Video
+        run: |
+          git config --global user.name "GitHub Actions Bot"
+          git config --global user.email "actions@github.com"
+          git add final_video.mp4
+          git commit -m "Auto-generated final video [skip ci]" || echo "No changes to commit"
+          git push
