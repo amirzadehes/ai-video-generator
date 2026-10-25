@@ -18,6 +18,7 @@
         button:hover { background: #0284c7; }
         .scene-card { background: #1e293b; border: 1px solid #475569; padding: 15px; border-radius: 6px; margin-bottom: 15px; }
         .prompt-text { background: #0f172a; padding: 10px; border-radius: 4px; color: #38bdf8; font-family: monospace; word-break: break-all; margin-bottom: 10px; }
+        .scene-actions { display: flex; gap: 10px; }
         #loading, #scenesSection { display: none; }
         .render-btn { background: #22c55e; margin-top: 20px; }
         .render-btn:hover { background: #16a34a; }
@@ -58,7 +59,6 @@
         
         <div id="scenesSection">
             <div id="scenesContainer"></div>
-            <button style="background: #475569; margin-bottom: 15px;" onclick="addSceneManual()">+ افزودن صحنه جدید دستی</button>
             <button class="render-btn" onclick="startFullPipeline()">آپلود عکس‌ها و ساخت نهایی ویدیو</button>
         </div>
 
@@ -71,7 +71,7 @@
     </div>
 
     <script>
-        const IMAGE_STYLE = "Modern editorial graphic novel illustration";
+        const IMAGE_STYLE = "Modern editorial graphic novel illustration, full-screen, borderless, edge-to-edge, zero text, no text boxes, no captions, no borders";
         let manualScenes = [];
 
         window.onload = function() {
@@ -176,7 +176,7 @@
                 htmlContent += `
                     <div class="scene-card" id="sceneCard_${i}">
                         <h3>صحنه ${sceneIndex}</h3>
-                        <div class="prompt-text">${s.prompt || 'پرامپت دستی'}</div>
+                        <div class="prompt-text">${s.prompt || 'پرامپت سفارشی'}</div>
                         <div class="time-inputs">
                             <div>
                                 <label>شروع (مثلاً 1:24):</label>
@@ -189,7 +189,10 @@
                         </div>
                         <label>آپلود عکس:</label>
                         <input type="file" id="imageInput_${i}" accept="image/*">
-                        <button style="background: #ef4444; margin-top: 5px; padding: 6px;" onclick="removeScene(${i})">حذف این صحنه</button>
+                        <div class="scene-actions">
+                            <button style="background: #10b981; padding: 8px;" onclick="addSceneBelow(${i})">+ افزودن صحنه جدید در زیر این صحنه</button>
+                            <button style="background: #ef4444; padding: 8px;" onclick="removeScene(${i})">حذف این صحنه</button>
+                        </div>
                     </div>
                 `;
             }
@@ -203,9 +206,9 @@
             manualScenes[i].end = mmssToSeconds(endStr);
         }
 
-        function addSceneManual() {
-            const lastEnd = manualScenes.length > 0 ? manualScenes[manualScenes.length - 1].end : 0;
-            manualScenes.push({ start: lastEnd, end: lastEnd + 30, prompt: "Custom manual scene image prompt" });
+        function addSceneBelow(i) {
+            const currentEnd = manualScenes[i].end;
+            manualScenes.splice(i + 1, 0, { start: currentEnd, end: currentEnd + 30, prompt: "Custom borderless editorial illustration, full-screen, no text" });
             renderScenesUI();
         }
 
@@ -253,7 +256,7 @@
 
             statusBox.style.display = 'block';
             progressBarContainer.style.display = 'block';
-            statusText.innerHTML = 'در حال آپلود فایل‌ها و عکس‌های سفارشی به گیت‌هاب...';
+            statusText.innerHTML = 'در حال آپلود فایل‌ها و عکس‌های تنظیم‌شده به گیت‌هاب...';
             progressBar.style.width = '20%';
             progressBar.innerHTML = '20%';
 
@@ -346,13 +349,19 @@
                 const artifactsRes = await axios.get(`https://api.github.com/repos/${owner}/${repo}/actions/artifacts`, { headers });
                 const artifact = artifactsRes.data.artifacts[0];
                 if (artifact) {
-                    document.getElementById('statusText').innerHTML = `
+                    // دریافت لینک مستقیم دانلود فایل ویدیو از داخل آرتیفکت گیت‌هاب
+                    const downloadRes = await axios.get(artifact.archive_download_url, {
+                        headers: { 'Authorization': `Bearer ${token}` },
+                        responseType: 'blob'
+                    });
+                    
+                    statusText.innerHTML = `
                         <b style="color: #22c55e; font-size: 16px;">ویدیو با موفقیت ساخته شد!</b><br><br>
-                        <a href="${artifact.archive_download_url}" target="_blank" style="background: #0ea5e9; color: white; padding: 10px 20px; text-decoration: none; border-radius: 6px; display: inline-block; font-weight: bold;">دانلود مستقیم فایل ویدیو (ZIP)</a>
+                        <a href="${artifact.archive_download_url}" target="_blank" style="background: #0ea5e9; color: white; padding: 10px 20px; text-decoration: none; border-radius: 6px; display: inline-block; font-weight: bold;">دانلود مستقیم فایل ویدیو (MP4)</a>
                     `;
                 }
             } catch (e) {
-                document.getElementById('statusText').innerHTML = 'ویدیو ساخته شد اما در دریافت لینک دانلود مشکلی پیش آمد. از تب Actions می‌توانید دانلود کنید.';
+                statusBox.innerHTML = 'ویدیو ساخته شد. از تب Actions می‌توانید دانلود کنید.';
             }
         }
     </script>
