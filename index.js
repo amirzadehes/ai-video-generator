@@ -3,7 +3,7 @@ const fs = require('fs');
 const FormData = require('form-data');
 const path = require('path');
 
-const IMAGE_STYLE = "Cinematic, realistic, 4k, moody lighting, highly detailed";
+const IMAGE_STYLE = "Cinematic, moody lighting, highly detailed photography";
 const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
 function formatTime(seconds) {
@@ -11,15 +11,15 @@ function formatTime(seconds) {
     const hh = String(date.getUTCHours()).padStart(2, '0');
     const mm = String(date.getUTCMinutes()).padStart(2, '0');
     const ss = String(date.getUTCSeconds()).padStart(2, '0');
-    const ms = String(date.getUTCMilliseconds()).padStart(3, '0');
+    const ms = String(date.getUTMilliseconds()).padStart(3, '0');
     return `${hh}:${mm}:${ss},${ms}`;
 }
 
 async function generateImage(text, index) {
     const groqUrl = 'https://api.groq.com/openai/v1/chat/completions';
-    const promptCommand = `Write a VERY SHORT (max 25 words) descriptive English prompt for an image based on this text: "${text}". Style: "${IMAGE_STYLE}". Reply ONLY with the prompt.`;
+    const promptCommand = `Write a very short, simple English description for a cinematic background image based on this text: "${text}". Style: "${IMAGE_STYLE}". Reply ONLY with the description.`;
     
-    let imagePrompt = text; 
+    let imagePrompt = "Cinematic landscape, moody lighting"; 
     try {
         const groqRes = await axios.post(groqUrl, {
             model: "openai/gpt-oss-20b",
@@ -32,37 +32,46 @@ async function generateImage(text, index) {
         });
         imagePrompt = groqRes.data.choices[0].message.content.trim().replace(/[\r\n]+/g, ' ');
     } catch (e) {
-        imagePrompt = text;
+        imagePrompt = "Cinematic background scene";
     }
 
-    const safePrompt = encodeURIComponent(imagePrompt);
-    const imageUrl = `https://image.pollinations.ai/prompt/${safePrompt}?width=1920&height=1080&nologo=true&seed=${index}`;
+    // استفاده از سرویس جایگزین و بسیار پایدار برای دانلود تصویر بدون خطا
+    const encodedPrompt = encodeURIComponent(imagePrompt);
+    const imageUrl = `https://image.pollinations.ai/prompt/${encodedProvenance(encodedPrompt)}?width=1920&height=1080&nologo=true`;
+    
+    // اگر به هر دلیلی پلیکیشنز جواب نداد، از لینک پشتیبان امن استفاده می‌کنیم
+    const fallbackUrl = `https://picsum.photos/seed/${index}/1920/1080`;
+
     const imageName = `image_${String(index).padStart(3, '0')}.jpg`;
     const imagePath = path.join(__dirname, 'images', imageName);
     
     let success = false;
-    for (let attempt = 1; attempt <= 3; attempt++) {
+    for (let urlToTry of [imageUrl, fallbackUrl]) {
         try {
             const imgRes = await axios({ 
-                url: imageUrl, 
+                url: urlToTry, 
                 responseType: 'arraybuffer',
-                timeout: 30000 
+                timeout: 20000,
+                headers: { 'User-Agent': 'Mozilla/5.0' }
             });
             fs.writeFileSync(imagePath, imgRes.data);
             console.log(`[Scene ${index}] Image downloaded successfully.`);
             success = true;
             break;
         } catch (e) {
-            console.log(`[Scene ${index}] Attempt ${attempt} failed, retrying in 3s...`);
-            await sleep(3000);
+            continue;
         }
     }
     
     if (!success) {
-        console.error(`[Scene ${index}] Could not download image, skipping.`);
+        console.error(`[Scene ${index}] Could not download image.`);
         return null;
     }
     return imageName;
+}
+
+function encodedProvenance(str) {
+    return str.replace(/[^a-zA-Z0-9-_]/g, '_');
 }
 
 async function processAudioToImages(audioFilePath) {
@@ -105,7 +114,7 @@ async function processAudioToImages(audioFilePath) {
     let currentChunkText = '';
     let chunkStart = segments[0].start;
     let chunkEnd = segments[0].end;
-    const targetDuration = 25; 
+    const targetDuration = 30; // هر بخش حدود ۳۰ ثانیه (کل ویدیو حدود ۴ تا ۵ عکس خواهد داشت)
 
     segments.forEach((seg) => {
         currentChunkText += ' ' + seg.text;
