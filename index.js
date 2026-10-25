@@ -7,12 +7,12 @@ const IMAGE_STYLE = "Cinematic, moody lighting, highly detailed photography";
 const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
 function formatTime(seconds) {
-    const date = new Date(seconds * 1000);
-    const hh = String(date.getUTCHours()).padStart(2, '0');
-    const mm = String(date.getUTCMinutes()).padStart(2, '0');
-    const ss = String(date.getUTCSeconds()).padStart(2, '0');
-    const ms = String(date.getUTMilliseconds()).padStart(3, '0');
-    return `${hh}:${mm}:${ss},${ms}`;
+    const pad = (num, size = 2) => String(num).padStart(size, '0');
+    const hrs = Math.floor(seconds / 3600);
+    const mins = Math.floor((seconds % 3600) / 60);
+    const secs = Math.floor(seconds % 60);
+    const millis = Math.floor((seconds % 1) * 1000);
+    return `${pad(hrs)}:${pad(mins)}:${pad(secs)},${pad(millis, 3)}`;
 }
 
 async function generateImage(text, index) {
@@ -35,11 +35,8 @@ async function generateImage(text, index) {
         imagePrompt = "Cinematic background scene";
     }
 
-    // استفاده از سرویس جایگزین و بسیار پایدار برای دانلود تصویر بدون خطا
     const encodedPrompt = encodeURIComponent(imagePrompt);
     const imageUrl = `https://image.pollinations.ai/prompt/${encodedProvenance(encodedPrompt)}?width=1920&height=1080&nologo=true`;
-    
-    // اگر به هر دلیلی پلیکیشنز جواب نداد، از لینک پشتیبان امن استفاده می‌کنیم
     const fallbackUrl = `https://picsum.photos/seed/${index}/1920/1080`;
 
     const imageName = `image_${String(index).padStart(3, '0')}.jpg`;
@@ -114,7 +111,7 @@ async function processAudioToImages(audioFilePath) {
     let currentChunkText = '';
     let chunkStart = segments[0].start;
     let chunkEnd = segments[0].end;
-    const targetDuration = 30; // هر بخش حدود ۳۰ ثانیه (کل ویدیو حدود ۴ تا ۵ عکس خواهد داشت)
+    const targetDuration = 30;
 
     segments.forEach((seg) => {
         currentChunkText += ' ' + seg.text;
