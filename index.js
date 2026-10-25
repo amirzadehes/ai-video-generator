@@ -21,7 +21,8 @@ async function generateImage(text, index) {
     let imagePrompt = text; 
     try {
         const groqRes = await axios.post(groqUrl, {
-            model: "llama-3.1-8b-instant",
+            // استفاده از مدل جدید و فعال Groq برای اکانت‌های رایگان
+            model: "openai/gpt-oss-20b",
             messages: [{ role: "user", content: promptCommand }]
         }, {
             headers: { 
@@ -30,7 +31,7 @@ async function generateImage(text, index) {
             }
         });
         imagePrompt = groqRes.data.choices[0].message.content.trim();
-        console.log(`[Scene ${index}] Llama 3.1 Prompt Generated.`);
+        console.log(`[Scene ${index}] Prompt Generated Successfully.`);
     } catch (e) {
         console.error(`[Scene ${index}] Groq Error Details:`, e.response ? JSON.stringify(e.response.data) : e.message);
         console.log(`[Scene ${index}] Using original text.`);
