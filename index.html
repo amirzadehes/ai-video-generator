@@ -492,6 +492,7 @@ ${transcriptContext}`;
             };
 
             let attempts = 0;
+            let lastErr = null;
             document.getElementById('statusBox').style.display = 'block';
             document.getElementById('progressBarContainer').style.display = 'none';
             document.getElementById('statusText').innerHTML = 'ویدیو ساخته شد. در حال مانیتورینگ برای دریافت لینک نهایی دانلود (این کار ممکن است چند ثانیه طول بکشد)...';
@@ -500,10 +501,6 @@ ${transcriptContext}`;
                 attempts++;
                 try {
                     const res = await axios.get(`https://api.github.com/repos/${owner}/${repo}/contents/final_video.mp4`, { headers });
-
-                    if (prevVideoSha && res.data.sha === prevVideoSha) {
-                        throw new Error('still the old video');
-                    }
 
                     clearInterval(checkInterval);
                     const baseUrl = res.data.download_url;
@@ -514,9 +511,10 @@ ${transcriptContext}`;
                         <a href="${downloadUrl}" target="_blank" download="final_video.mp4" style="background: #0ea5e9; color: white; padding: 10px 20px; text-decoration: none; border-radius: 6px; display: inline-block; font-weight: bold;">دانلود قطعی فایل ویدیو (MP4)</a>
                     `;
                 } catch (e) {
-                    if (attempts >= 30) {
+                    lastErr = e;
+                    if (attempts >= 20) {
                         clearInterval(checkInterval);
-                        document.getElementById('statusText').innerHTML = '<b style="color: #ef4444;">خطا: ویدیو ساخته شد اما فایل نهایی در مخزن یافت نشد. لطفاً دسترسی Write در فایل main.yml را بررسی کنید.</b>';
+                        document.getElementById('statusText').innerHTML = '<b style="color: #ef4444;">خطا: ویدیو ساخته شد اما فایل نهایی در مخزن یافت نشد. (کد خطا: ' + ((lastErr && lastErr.response && lastErr.response.status) || (lastErr && lastErr.message) || 'نامشخص') + ')</b>';
                     }
                 }
             }, 3000);
